@@ -7,7 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,22 +16,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,41 +45,64 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import mesh.android.identity.NodeIdentityManager
 import mesh.android.permission.MeshPermissions
+import mesh.android.power.DutyCycleController
+import mesh.android.service.MeshService
 import mesh.android.transport.NearbyTransport
-import mesh.android.transport.TransportEventType
 import mesh.android.transport.TransportLogEvent
+import mesh.node.MeshNode
 import mesh.protocol.NodeId
 import mesh.protocol.Packet
-import mesh.protocol.PacketFactory
+import mesh.storage.MessageRecord
 import mesh.transport.TransportListener
 import org.koin.android.ext.android.inject
+import org.mesh.emergency.ui.components.HeaderBar
+import org.mesh.emergency.ui.components.OnboardingDialog
+import org.mesh.emergency.ui.screens.ConversationScreen
+import org.mesh.emergency.ui.screens.DebugPanelScreen
+import org.mesh.emergency.ui.screens.InboxScreen
+import org.mesh.emergency.ui.screens.MeshTopologyScreen
+import org.mesh.emergency.ui.theme.Cyan400
+import org.mesh.emergency.ui.theme.MeshTheme
+import org.mesh.emergency.ui.theme.Rose500
+import org.mesh.emergency.ui.theme.Slate400
+import org.mesh.emergency.ui.theme.Slate800
+import org.mesh.emergency.ui.theme.Slate900
+import org.mesh.emergency.ui.theme.Slate950
+
+enum class MainNavTab {
+    INBOX,
+    TOPOLOGY,
+    DEBUG
+}
+
+sealed class NavigationTarget {
+    object Main : NavigationTarget()
+    object BroadcastConversation : NavigationTarget()
+    data class DirectConversation(val peerId: NodeId) : NavigationTarget()
+}
 
 class MainActivity : ComponentActivity() {
 
     private val identityManager: NodeIdentityManager by inject()
     private val nearbyTransport: NearbyTransport by inject()
-    private val meshNode: mesh.node.MeshNode by inject()
+    private val meshNode: MeshNode by inject()
+    private val dutyCycleController: DutyCycleController by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    MeshScreen(
-                        identityManager = identityManager,
-                        nearbyTransport = nearbyTransport,
-                        meshNode = meshNode
-                    )
-                }
+            MeshTheme {
+                MainAppContent(
+                    identityManager = identityManager,
+                    nearbyTransport = nearbyTransport,
+                    meshNode = meshNode,
+                    dutyCycleController = dutyCycleController
+                )
             }
         }
     }
@@ -82,342 +110,262 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         // Do not stop nearbyTransport here if MeshService is running in the background
-        if (!mesh.android.service.MeshService.isServiceRunning) {
+        if (!MeshService.isServiceRunning) {
             nearbyTransport.stop()
         }
     }
 }
 
 @Composable
-fun MeshScreen(
+fun MainAppContent(
     identityManager: NodeIdentityManager,
     nearbyTransport: NearbyTransport,
-    meshNode: mesh.node.MeshNode
+    meshNode: MeshNode,
+    dutyCycleController: DutyCycleController
 ) {
     val context = LocalContext.current
     var hasPermissions by remember { mutableStateOf(MeshPermissions.hasAllPermissions(context)) }
-    var isRadioActive by remember { mutableStateOf(mesh.android.service.MeshService.isServiceRunning || nearbyTransport.isRunning) }
+    var isServiceRunning by remember { mutableStateOf(MeshService.isServiceRunning || nearbyTransport.isRunning) }
+
+    var selectedTab by remember { mutableStateOf(MainNavTab.INBOX) }
+    var currentNavTarget by remember { mutableStateOf<NavigationTarget>(NavigationTarget.Main) }
+    var showProfileDialog by remember { mutableStateOf(false) }
 
     val connectedPeers = remember { mutableStateListOf<NodeId>() }
+    val allMessages = remember { mutableStateListOf<MessageRecord>() }
     val recentEvents = remember { mutableStateListOf<TransportLogEvent>() }
+
+    fun refreshState() {
+        connectedPeers.clear()
+        connectedPeers.addAll(nearbyTransport.getConnectedPeers())
+        allMessages.clear()
+        allMessages.addAll(meshNode.messageStore.getAllMessages())
+        recentEvents.clear()
+        recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(25).reversed())
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         hasPermissions = results.values.all { it }
         if (hasPermissions) {
-            Toast.makeText(context, "Permissions granted. Ready to start radio.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Permissions granted.", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Some permissions were denied. Mesh radio may fail.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Some permissions were denied.", Toast.LENGTH_LONG).show()
         }
     }
 
     DisposableEffect(nearbyTransport) {
         val listener = object : TransportListener {
             override fun onPeerConnected(peer: NodeId) {
-                if (!connectedPeers.contains(peer)) {
-                    connectedPeers.add(peer)
-                }
-                recentEvents.clear()
-                recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
+                refreshState()
             }
 
             override fun onPeerDisconnected(peer: NodeId) {
-                connectedPeers.remove(peer)
-                recentEvents.clear()
-                recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
+                refreshState()
             }
 
             override fun onPacketReceived(fromPeer: NodeId, packet: Packet) {
-                recentEvents.clear()
-                recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
+                refreshState()
             }
         }
 
         nearbyTransport.registerListener(listener)
-        connectedPeers.clear()
-        connectedPeers.addAll(nearbyTransport.getConnectedPeers())
-        recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
+        meshNode.onMessageReceived { _, _, _ -> refreshState() }
+        meshNode.onDelivered { _, _ -> refreshState() }
+
+        refreshState()
 
         onDispose {
             nearbyTransport.unregisterListener(listener)
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
-                text = "Emergency Mesh Network",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Phase 5: Nearby Connections Transport",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.secondary
+    when (val target = currentNavTarget) {
+        is NavigationTarget.BroadcastConversation -> {
+            ConversationScreen(
+                peerId = null,
+                meshNode = meshNode,
+                allMessages = allMessages,
+                onBack = { currentNavTarget = NavigationTarget.Main },
+                onMessageSent = { refreshState() }
             )
         }
 
-        // Onboarding card for missing permissions
-        if (!hasPermissions) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Permissions Required for Offline Radio",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "To form an ad-hoc mesh network without cellular or Wi-Fi infrastructure, the app requires Bluetooth scan/advertise and local Nearby Wi-Fi permissions.",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = {
-                                permissionLauncher.launch(MeshPermissions.getRequiredPermissions())
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Grant Mesh Permissions")
-                        }
-                    }
-                }
-            }
+        is NavigationTarget.DirectConversation -> {
+            ConversationScreen(
+                peerId = target.peerId,
+                meshNode = meshNode,
+                allMessages = allMessages,
+                onBack = { currentNavTarget = NavigationTarget.Main },
+                onMessageSent = { refreshState() }
+            )
         }
 
-        // Node Identity Card
-        item {
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Local Node Identity",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(text = "Name: ${identityManager.displayName}", fontSize = 15.sp)
-                    Text(
-                        text = "Node ID: ${identityManager.nodeId.toHex()}",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Encrypted Local Store: 256-bit AES (SQLCipher)",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-        }
-
-        // Transport Radio Controller Card
-        item {
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "P2P Cluster Radio",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
+        NavigationTarget.Main -> {
+            Scaffold(
+                containerColor = Slate950,
+                topBar = {
+                    Column {
+                        HeaderBar(
+                            identityManager = identityManager,
+                            isRadioActive = isServiceRunning,
+                            onEditProfileClick = { showProfileDialog = true }
                         )
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = if (isRadioActive) Color(0xFF2E7D32) else Color.Gray,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (isRadioActive) "ACTIVE" else "STOPPED",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Strategy: Google Nearby Connections P2P_CLUSTER (BLE + Wi-Fi Direct)",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                if (hasPermissions) {
-                                    mesh.android.service.MeshService.startService(context)
-                                    isRadioActive = true
-                                    recentEvents.clear()
-                                    recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
-                                } else {
+                        if (!hasPermissions) {
+                            PermissionsBanner(
+                                onRequestPermissions = {
                                     permissionLauncher.launch(MeshPermissions.getRequiredPermissions())
                                 }
-                            },
-                            enabled = !isRadioActive
-                        ) {
-                            Text("Start Service")
+                            )
                         }
+                    }
+                },
+                bottomBar = {
+                    NavigationBar(
+                        containerColor = Slate900,
+                        tonalElevation = 6.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = selectedTab == MainNavTab.INBOX,
+                            onClick = { selectedTab = MainNavTab.INBOX },
+                            icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Inbox") },
+                            label = { Text("Inbox") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                selectedTextColor = Cyan400,
+                                indicatorColor = Cyan400,
+                                unselectedIconColor = Slate400,
+                                unselectedTextColor = Slate400
+                            )
+                        )
 
-                        OutlinedButton(
-                            onClick = {
-                                mesh.android.service.MeshService.stopService(context)
-                                isRadioActive = false
-                                connectedPeers.clear()
-                                recentEvents.clear()
-                                recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
-                            },
-                            enabled = isRadioActive
-                        ) {
-                            Text("Stop Service")
-                        }
+                        NavigationBarItem(
+                            selected = selectedTab == MainNavTab.TOPOLOGY,
+                            onClick = { selectedTab = MainNavTab.TOPOLOGY },
+                            icon = { Icon(Icons.Default.Hub, contentDescription = "Topology") },
+                            label = { Text("Mesh") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                selectedTextColor = Cyan400,
+                                indicatorColor = Cyan400,
+                                unselectedIconColor = Slate400,
+                                unselectedTextColor = Slate400
+                            )
+                        )
+
+                        NavigationBarItem(
+                            selected = selectedTab == MainNavTab.DEBUG,
+                            onClick = { selectedTab = MainNavTab.DEBUG },
+                            icon = { Icon(Icons.Default.BugReport, contentDescription = "Debug") },
+                            label = { Text("Debug") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                selectedTextColor = Cyan400,
+                                indicatorColor = Cyan400,
+                                unselectedIconColor = Slate400,
+                                unselectedTextColor = Slate400
+                            )
+                        )
                     }
                 }
-            }
-        }
-
-        // Connected Direct Peers Card
-        item {
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Connected Peers (${connectedPeers.size})",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
-                        )
-
-                        Button(
-                            onClick = {
-                                val packet = meshNode.broadcast("PING from ${identityManager.displayName}".toByteArray())
-                                Toast.makeText(context, "Broadcasted mesh ping", Toast.LENGTH_SHORT).show()
-                                recentEvents.clear()
-                                recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
-                            },
-                            enabled = isRadioActive && connectedPeers.isNotEmpty()
-                        ) {
-                            Text("Send Test Ping")
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    when (selectedTab) {
+                        MainNavTab.INBOX -> {
+                            InboxScreen(
+                                meshNode = meshNode,
+                                connectedPeers = connectedPeers,
+                                allMessages = allMessages,
+                                onOpenBroadcast = {
+                                    currentNavTarget = NavigationTarget.BroadcastConversation
+                                },
+                                onOpenDirectChat = { peer ->
+                                    currentNavTarget = NavigationTarget.DirectConversation(peer)
+                                }
+                            )
                         }
-                    }
 
-                    if (connectedPeers.isEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (isRadioActive) "Searching for nearby mesh nodes..." else "Radio is stopped.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        connectedPeers.forEach { peer ->
-                            Text(
-                                text = "• Peer: ${peer.toHex()}",
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp
+                        MainNavTab.TOPOLOGY -> {
+                            MeshTopologyScreen(
+                                meshNode = meshNode,
+                                connectedPeers = connectedPeers,
+                                onOpenDirectChat = { peer ->
+                                    currentNavTarget = NavigationTarget.DirectConversation(peer)
+                                }
+                            )
+                        }
+
+                        MainNavTab.DEBUG -> {
+                            DebugPanelScreen(
+                                meshNode = meshNode,
+                                nearbyTransport = nearbyTransport,
+                                dutyCycleController = dutyCycleController,
+                                isServiceRunning = isServiceRunning,
+                                recentEvents = recentEvents,
+                                onToggleService = { start ->
+                                    if (start) {
+                                        if (hasPermissions) {
+                                            MeshService.startService(context)
+                                            isServiceRunning = true
+                                        } else {
+                                            permissionLauncher.launch(MeshPermissions.getRequiredPermissions())
+                                        }
+                                    } else {
+                                        MeshService.stopService(context)
+                                        isServiceRunning = false
+                                    }
+                                    refreshState()
+                                },
+                                onRefresh = { refreshState() }
                             )
                         }
                     }
                 }
             }
         }
+    }
 
-        // Transport Link Log Events (Diagnostics)
-        item {
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Link Layer Event Log",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
+    if (showProfileDialog) {
+        OnboardingDialog(
+            identityManager = identityManager,
+            hasPermissions = hasPermissions,
+            onRequestPermissions = {
+                permissionLauncher.launch(MeshPermissions.getRequiredPermissions())
+            },
+            onDismiss = { showProfileDialog = false }
+        )
+    }
+}
 
-                    if (recentEvents.isEmpty()) {
-                        Text(
-                            text = "No events logged yet.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    } else {
-                        recentEvents.take(15).forEach { event ->
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = event.eventType.name,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = when (event.eventType) {
-                                            TransportEventType.PEER_CONNECTED,
-                                            TransportEventType.PACKET_RECEIVED,
-                                            TransportEventType.PACKET_SENT -> MaterialTheme.colorScheme.primary
-                                            TransportEventType.CONNECTION_FAILED,
-                                            TransportEventType.PACKET_REJECTED_OVERSIZE -> MaterialTheme.colorScheme.error
-                                            else -> MaterialTheme.colorScheme.secondary
-                                        }
-                                    )
-                                    Text(
-                                        text = "${event.timestampMs % 100000}ms",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                                val summary = event.packetSummary ?: event.details ?: event.peerIdHex
-                                if (summary != null) {
-                                    Text(
-                                        text = summary,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-                        }
-                    }
-                }
-            }
+@Composable
+fun PermissionsBanner(onRequestPermissions: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF3B151E))
+            .clickable { onRequestPermissions() }
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Warning",
+                tint = Rose500,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Missing permissions for offline mesh radio. Tap to grant.",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Rose500
+            )
         }
     }
 }

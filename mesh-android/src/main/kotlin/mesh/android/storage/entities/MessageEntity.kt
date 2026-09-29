@@ -32,7 +32,10 @@ data class MessageEntity(
     val deliveryState: String,
 
     @ColumnInfo(name = "is_incoming")
-    val isIncoming: Boolean
+    val isIncoming: Boolean,
+
+    @ColumnInfo(name = "hop_count", defaultValue = "0")
+    val hopCount: Int = 0
 ) {
     fun toDomain(): MessageRecord {
         return MessageRecord(
@@ -43,7 +46,8 @@ data class MessageEntity(
             createdAtMs = createdAtMs,
             expiresAtMs = expiresAtMs,
             deliveryState = DeliveryState.valueOf(deliveryState),
-            isIncoming = isIncoming
+            isIncoming = isIncoming,
+            hopCount = hopCount
         )
     }
 
@@ -57,7 +61,8 @@ data class MessageEntity(
                 createdAtMs = record.createdAtMs,
                 expiresAtMs = record.expiresAtMs,
                 deliveryState = record.deliveryState.name,
-                isIncoming = record.isIncoming
+                isIncoming = record.isIncoming,
+                hopCount = record.hopCount
             )
         }
     }

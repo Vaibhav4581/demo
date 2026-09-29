@@ -15,7 +15,8 @@ data class MessageRecord(
     val createdAtMs: Long,
     val expiresAtMs: Long,
     val deliveryState: DeliveryState,
-    val isIncoming: Boolean
+    val isIncoming: Boolean,
+    val hopCount: Int = 0
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -46,9 +47,9 @@ interface MessageStore {
     fun getAllMessages(): List<MessageRecord>
 
     /**
-     * Updates the delivery state of a stored message.
+     * Updates the delivery state of a stored message, optionally updating hop count.
      */
-    fun updateDeliveryState(msgId: ByteArray, state: DeliveryState)
+    fun updateDeliveryState(msgId: ByteArray, state: DeliveryState, hopCount: Int? = null)
 
     /**
      * Returns a list of 16-byte message IDs currently held in storage (for anti-entropy reconciliation).

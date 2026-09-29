@@ -40,6 +40,10 @@ class Outbox(
     }
 
     private val entries = ConcurrentHashMap<ByteArrayKey, OutboxEntry>()
+    private val _totalRetransmissions = java.util.concurrent.atomic.AtomicLong(0)
+
+    val totalRetransmissions: Long
+        get() = _totalRetransmissions.get()
 
     /**
      * Enqueues a packet for transmission.
@@ -164,6 +168,7 @@ class Outbox(
                     entry.nextRetryTimeMs = nowMs + retryPolicy.nextRetryDelayMs(entry.attempt)
                     if (sent) {
                         messageStore.updateDeliveryState(key.bytes, DeliveryState.SENT)
+                        _totalRetransmissions.incrementAndGet()
                         retriedCount++
                     }
                 } else {
@@ -187,7 +192,7 @@ class Outbox(
         val key = ByteArrayKey(msgIdBytes)
         val entry = entries.remove(key)
         messageStore.removeOutboxPacket(msgIdBytes)
-        messageStore.updateDeliveryState(msgIdBytes, DeliveryState.DELIVERED)
+        messageStore.updateDeliveryState(msgIdBytes, DeliveryState.DELIVERED, ackPacket.hopCount)
         entry?.onDelivered?.invoke(ackPacket)
     }
 

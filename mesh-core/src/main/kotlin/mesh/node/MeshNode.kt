@@ -224,7 +224,8 @@ class MeshNode(
                 createdAtMs = packet.createdAtMs,
                 expiresAtMs = packet.expiresAtMs,
                 deliveryState = DeliveryState.DELIVERED,
-                isIncoming = true
+                isIncoming = true,
+                hopCount = packet.hopCount
             )
             messageStore.saveMessage(record)
             messageReceivedCallbacks.forEach { it(packet.originNodeId, decryptedPayload, packet.isBroadcast) }

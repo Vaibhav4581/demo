@@ -18,8 +18,14 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY created_at_ms ASC")
     fun getAllMessages(): List<MessageEntity>
 
-    @Query("UPDATE messages SET delivery_state = :state WHERE msg_id = :msgId")
-    fun updateDeliveryState(msgId: ByteArray, state: String)
+    @Query("SELECT * FROM messages WHERE dest IS NULL ORDER BY created_at_ms ASC")
+    fun getBroadcastMessages(): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE (dest = :peerId AND is_incoming = 0) OR (origin = :peerId AND is_incoming = 1) ORDER BY created_at_ms ASC")
+    fun getConversation(peerId: ByteArray): List<MessageEntity>
+
+    @Query("UPDATE messages SET delivery_state = :state, hop_count = COALESCE(:hopCount, hop_count) WHERE msg_id = :msgId")
+    fun updateDeliveryState(msgId: ByteArray, state: String, hopCount: Int? = null)
 
     @Query("SELECT msg_id FROM messages")
     fun getHeldMessageIds(): List<ByteArray>

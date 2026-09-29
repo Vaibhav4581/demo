@@ -112,4 +112,28 @@ This document tracks all key technical choices, library selections, and design r
 - **Consequences:**
   Guarantees unbroken multi-hop relaying with the screen turned off while keeping idle power consumption sustainable over extended disaster recovery periods.
 
+---
+
+## ADR 008: Jetpack Compose User Interface, Navigation Architecture & Hop-Count Visualization
+
+- **Date:** 2026-09-29
+- **Status:** Accepted
+- **Context:**
+  In a disaster scenario without infrastructure, users require immediate clarity on:
+  1. Distinguishing emergency broadcasts (propagating to all reachable nodes) from 1-on-1 direct peer communications.
+  2. Clear feedback on message delivery states (QUEUED in store-and-forward, SENT across link, RELAYED by intermediate hops, DELIVERED with recipient ACK confirmation, or EXPIRED).
+  3. Physical mesh topology visibility (who is a direct 1-hop link vs who requires multi-hop relaying).
+  4. Real-time network engine health (duplicates dropped by anti-storm Bloom filter, outbox queue length, and battery-aware duty cycling state).
+  5. Low power consumption on OLED/AMOLED screens.
+- **Decision:**
+  - Build the user interface with Jetpack Compose using a battery-efficient Slate Dark theme (`#090D16` / `#0F172A`).
+  - Implement a 3-tab navigation hierarchy:
+    - **Inbox:** Persistent Emergency Broadcast channel + Discovered 1-on-1 direct peer chats with reachability badges (`1-HOP DIRECT`, `N HOPS`, `STORE-FORWARD`).
+    - **Mesh Screen:** Overview of direct 1-hop neighbours from `NeighbourTable`, known distance-vector reachable nodes from `RouteTable`, and a visual canvas graph rendering topological links.
+    - **Debug Panel:** Real-time health metrics grid (duplicates dropped, outbox queue, retransmissions, duty cycle FSM state, battery level), diagnostic action triggers (force HELLO, purge store), and live link-layer event log inspector.
+  - Implement per-message status chips with a distinct color hierarchy (QUEUED: Amber, SENT: Blue, RELAYED: Purple, DELIVERED: Emerald, EXPIRED: Rose) and hop count chips (`0 hops (Broadcast)`, `1 hop (Direct)`, `N hops`).
+  - Store and propagate `hop_count` from protobuf packets into Room encrypted database (`MessageEntity`) and domain `MessageRecord`.
+- **Consequences:**
+  Provides a clean, intuitive, and battery-conserving interface that makes complex multi-hop mesh routing and store-and-forward dynamics transparent to end users.
+
 

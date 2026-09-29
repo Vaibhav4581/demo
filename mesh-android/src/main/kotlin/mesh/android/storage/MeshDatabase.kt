@@ -21,7 +21,7 @@ import net.sqlcipher.database.SupportFactory
         RouteEntity::class,
         NodeEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MeshDatabase : RoomDatabase() {

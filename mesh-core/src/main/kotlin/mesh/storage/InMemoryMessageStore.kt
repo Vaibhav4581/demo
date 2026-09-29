@@ -37,11 +37,14 @@ class InMemoryMessageStore : MessageStore {
     }
 
     @Synchronized
-    override fun updateDeliveryState(msgId: ByteArray, state: DeliveryState) {
+    override fun updateDeliveryState(msgId: ByteArray, state: DeliveryState, hopCount: Int?) {
         val key = ByteArrayKey(msgId)
         val existing = messages[key]
         if (existing != null) {
-            messages[key] = existing.copy(deliveryState = state)
+            messages[key] = existing.copy(
+                deliveryState = state,
+                hopCount = hopCount ?: existing.hopCount
+            )
         }
     }
 

@@ -34,8 +34,8 @@ class RoomMessageStore(
         return messageDao.getAllMessages().map { it.toDomain() }
     }
 
-    override fun updateDeliveryState(msgId: ByteArray, state: DeliveryState) {
-        messageDao.updateDeliveryState(msgId, state.name)
+    override fun updateDeliveryState(msgId: ByteArray, state: DeliveryState, hopCount: Int?) {
+        messageDao.updateDeliveryState(msgId, state.name, hopCount)
     }
 
     override fun getHeldMessageIds(): List<ByteArray> {

@@ -68,3 +68,42 @@ Verify that the `MeshService` foreground service (connected-device type) maintai
 | **6** | Turn on Device B screen and inspect the **Link Layer Event Log**. | Device B log confirms packet was received and processed while screen was OFF with no crash or disconnection. | [ ] |
 | **7** | Verify battery consumption: inspect battery drain over the 10-minute idle window. | Idle battery drain remains below ~1-2% per hour due to `DutyCycleController` sleep cycling. | [ ] |
 
+---
+
+## [HUMAN GATE 3]: Full Jetpack Compose User Interface Walkthrough
+
+### Purpose
+Verify the end-to-end user experience on real physical devices across all screens:
+1. Onboarding, permissions banner, and profile display name editing.
+2. Emergency broadcast messaging vs 1-on-1 direct peer conversation.
+3. Real-time per-message status chips (`QUEUED`, `SENT`, `RELAYED`, `DELIVERED`, `EXPIRED`) and hop-count badges (`0 hops (Broadcast)`, `1 hop (Direct)`, `N hops`).
+4. Mesh Topology screen (1-hop direct neighbours, distance-vector routing table, and visual topology canvas).
+5. Debug panel (anti-storm deduplication counters, outbox queue length, retransmission metrics, duty-cycle state, and link event logs).
+
+---
+
+### Prerequisites
+- Two or three physical Android devices with Bluetooth and Wi-Fi enabled.
+- Fresh debug APK installed:
+  ```bash
+  ./gradlew :app:assembleDebug
+  adb -s <device_serial> install -r app/build/outputs/apk/debug/app-debug.apk
+  ```
+
+---
+
+### Step-by-Step Verification Checklist
+
+| Step | Screen / Feature | Action | Expected Result | Pass / Fail |
+|:---:|:---|:---|:---|:---:|
+| **1** | **Onboarding & Identity** | Launch app. Tap on display name in the top header card. | Onboarding modal opens showing current display name, cryptographic Node ID, and security note. Change name to "Alpha-1" and tap "Save Profile". Header immediately updates to "Alpha-1". | [ ] |
+| **2** | **Permissions Banner** | If permissions are missing, tap the red permissions banner at top. | Runtime dialog prompts for Bluetooth & Nearby Wi-Fi permissions. Grant permissions. Red banner immediately disappears. | [ ] |
+| **3** | **Radio Activation** | Navigate to the **Debug** tab. Tap **Start Service**. | Persistent foreground notification appears. Mesh status badge in header switches to green **MESH ON**. Duty cycle card shows **RADIO ACTIVE**. | [ ] |
+| **4** | **Emergency Broadcast** | In **Inbox** tab, tap the top crimson card: **Emergency Broadcast Channel**. Type "MAYDAY: Medical kit needed at Sector 4" and tap Send. | Message appears in chat with teal bubble. Status chip displays **QUEUED** then updates to **DELIVERED** with **📡 Broadcast** chip. | [ ] |
+| **5** | **Broadcast Reception** | Inspect **Device B**. | Device B receives the broadcast immediately. Opening Emergency Broadcast shows incoming message from Device A's Node ID with crimson bubble and timestamp. | [ ] |
+| **6** | **Peer Discovery & 1:1 Chat** | In Device A's **Inbox**, wait 5-15 seconds for BLE/Wi-Fi discovery. | Device B appears under **Direct 1:1 Conversations** with an avatar and green **⚡ 1-HOP DIRECT** badge. | [ ] |
+| **7** | **Direct Unicast & ACK** | Tap Device B's conversation row on Device A. Type "Direct status check" and tap Send. | Device A message shows **SENT** then transitions to **DELIVERED** upon receiving ACK. Hop count chip displays **⚡ Direct (1 hop)**. | [ ] |
+| **8** | **Mesh Topology Screen** | Tap the **Mesh** tab at the bottom navigation bar. | Screen displays: <br>• **1-HOP PEERS** counter (1) and **MULTI-HOP** counter.<br>• Interactive **Visual Mesh Topology** canvas rendering local node (Cyan) linked to peer (Emerald).<br>• Direct 1-hop card showing peer ID and "Chat" button. | [ ] |
+| **9** | **Debug & Health Panel** | Tap the **Debug** tab at the bottom navigation bar. | Screen displays 2x2 health metrics grid: <br>• **DUPLICATES DROPPED** (anti-storm filter)<br>• **RETRANSMISSIONS**<br>• **OUTBOX QUEUE**<br>• **BATTERY LEVEL**<br>• Scrolling **LINK LAYER LOG** with millisecond timestamps. | [ ] |
+| **10** | **Manual Diagnostics** | In Debug panel, tap **Force HELLO** and **Purge Expired**. | Toast notifications confirm HELLO broadcast and expired store purge with zero crashes. | [ ] |
+
