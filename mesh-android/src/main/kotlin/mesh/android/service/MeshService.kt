@@ -152,6 +152,9 @@ class MeshService : Service() {
         dutyCycleController.listener = dutyCycleListener
         dutyCycleController.start()
 
+        // Eagerly initialize MeshNode and attach multi-hop Router to transport
+        meshNode.router.toString()
+
         // Start transport and register listeners
         nearbyTransport.registerListener(transportListener)
         nearbyTransport.start()

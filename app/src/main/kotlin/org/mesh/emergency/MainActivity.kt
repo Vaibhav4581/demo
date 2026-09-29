@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
     private val identityManager: NodeIdentityManager by inject()
     private val nearbyTransport: NearbyTransport by inject()
+    private val meshNode: mesh.node.MeshNode by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +71,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MeshScreen(
                         identityManager = identityManager,
-                        nearbyTransport = nearbyTransport
+                        nearbyTransport = nearbyTransport,
+                        meshNode = meshNode
                     )
                 }
             }
@@ -89,7 +91,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MeshScreen(
     identityManager: NodeIdentityManager,
-    nearbyTransport: NearbyTransport
+    nearbyTransport: NearbyTransport,
+    meshNode: mesh.node.MeshNode
 ) {
     val context = LocalContext.current
     var hasPermissions by remember { mutableStateOf(MeshPermissions.hasAllPermissions(context)) }
@@ -321,13 +324,8 @@ fun MeshScreen(
 
                         Button(
                             onClick = {
-                                val testPacket = PacketFactory.createData(
-                                    origin = identityManager.nodeId,
-                                    dest = null, // Broadcast
-                                    payload = "PING from ${identityManager.displayName}".toByteArray()
-                                )
-                                val count = nearbyTransport.broadcast(testPacket)
-                                Toast.makeText(context, "Sent test packet to $count peers", Toast.LENGTH_SHORT).show()
+                                val packet = meshNode.broadcast("PING from ${identityManager.displayName}".toByteArray())
+                                Toast.makeText(context, "Broadcasted mesh ping", Toast.LENGTH_SHORT).show()
                                 recentEvents.clear()
                                 recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(20).reversed())
                             },
