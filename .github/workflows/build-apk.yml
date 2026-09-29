@@ -37,6 +37,9 @@ jobs:
       - name: Grant Execute Permission to Gradlew
         run: chmod +x ./gradlew
 
+      - name: Configure Gradle Environment for Linux Runner
+        run: sed -i '/org.gradle.java.home/d' gradle.properties
+
       - name: Run Core & Android Unit Tests
         run: ./gradlew :mesh-core:test :mesh-android:test
 
