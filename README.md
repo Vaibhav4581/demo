@@ -10,8 +10,8 @@ Every device acts simultaneously as a sender, a receiver, and a **relay**, forwa
 
 Whenever new updates are pushed to GitHub, GitHub Actions automatically builds the latest debug APK and publishes it:
 
-- **Direct Download Link:** `https://github.com/<owner>/<repo>/releases/latest/download/app-debug.apk`
-- **QR Code Webpage:** Open `https://<owner>.github.io/<repo>/` on a laptop screen and scan the QR code with your phone's camera to install in seconds!
+- **Direct Download Link:** [Download app-debug.apk](https://github.com/Vaibhav4581/demo/releases/latest/download/app-debug.apk)
+- **QR Code Webpage:** [https://vaibhav4581.github.io/demo/](https://vaibhav4581.github.io/demo/) (open on laptop screen & scan with phone camera)
 
 ---
 

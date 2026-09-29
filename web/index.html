@@ -230,15 +230,20 @@
   </div>
 
   <script>
-    // Dynamically calculate the repo-specific download URL
+    // Default repository coordinates
+    let owner = "Vaibhav4581";
+    let repo = "demo";
+
+    // Auto-detect if hosted on GitHub Pages or custom path
     const pathnameParts = window.location.pathname.split('/').filter(Boolean);
-    let owner = window.location.hostname.split('.')[0];
-    let repo = pathnameParts.length > 0 ? pathnameParts[0] : '';
+    if (window.location.hostname.endsWith('github.io')) {
+      owner = window.location.hostname.split('.')[0];
+      if (pathnameParts.length > 0) repo = pathnameParts[0];
+    }
 
-    // Fallback if hosted on custom domain or test environment
-    let apkUrl = "https://github.com/" + owner + "/" + repo + "/releases/latest/download/app-debug.apk";
+    let apkUrl = `https://github.com/${owner}/${repo}/releases/latest/download/app-debug.apk`;
 
-    // Allow override via query parameter (e.g. ?url=...)
+    // Allow override via query parameter (e.g. ?apk=...)
     const params = new URLSearchParams(window.location.search);
     if (params.has('apk')) {
       apkUrl = params.get('apk');
