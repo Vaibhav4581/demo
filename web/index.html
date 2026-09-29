@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emergency Mesh Network — Download APK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.85);
+      --border: #1e293b;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.35);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .container {
+      max-width: 520px;
+      width: 100%;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 28px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulseAnim 2s infinite;
+    }
+
+    @keyframes pulseAnim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    .qr-card {
+      background: #ffffff;
+      padding: 18px;
+      border-radius: 18px;
+      display: inline-block;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      border: 4px solid var(--border);
+    }
+
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .scan-hint {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: var(--accent);
+      color: #0b0f19;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 16px;
+      padding: 16px 24px;
+      border-radius: 14px;
+      box-shadow: 0 8px 20px var(--accent-glow);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-download:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px var(--accent-glow);
+      filter: brightness(1.08);
+    }
+
+    .meta-box {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      text-align: left;
+    }
+
+    .meta-item {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .meta-val {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-main);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .instructions {
+      margin-top: 24px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 12px;
+      text-align: left;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .instructions strong {
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="badge">
+      <span class="pulse"></span>
+      Continuous Deployment Active
+    </div>
+
+    <h1>Emergency Mesh</h1>
+    <p class="subtitle">Offline, multi-hop peer-to-peer disaster messaging network for Android.</p>
+
+    <div class="qr-card">
+      <div id="qrcode"></div>
+    </div>
+
+    <p class="scan-hint">Scan with your phone's camera to install directly</p>
+
+    <a id="download-btn" href="#" class="btn-download">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Download Latest APK
+    </a>
+
+    <div class="instructions">
+      <strong>Installation Note:</strong> When installing on Android, allow <em>"Install from unknown sources"</em> when prompted by your browser. No cellular or internet is needed once installed!
+    </div>
+
+    <div class="meta-box">
+      <div class="meta-item">
+        MINIMUM OS
+        <div class="meta-val">Android 8.0+ (API 26)</div>
+      </div>
+      <div class="meta-item">
+        SECURITY
+        <div class="meta-val">SQLCipher 256-bit</div>
+      </div>
+      <div class="meta-item">
+        TRANSPORT
+        <div class="meta-val">Nearby P2P Cluster</div>
+      </div>
+      <div class="meta-item">
+        RELEASE TAG
+        <div id="release-tag" class="meta-val">latest</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Dynamically calculate the repo-specific download URL
+    const pathnameParts = window.location.pathname.split('/').filter(Boolean);
+    let owner = window.location.hostname.split('.')[0];
+    let repo = pathnameParts.length > 0 ? pathnameParts[0] : '';
+
+    // Fallback if hosted on custom domain or test environment
+    let apkUrl = "https://github.com/" + owner + "/" + repo + "/releases/latest/download/app-debug.apk";
+
+    // Allow override via query parameter (e.g. ?url=...)
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('apk')) {
+      apkUrl = params.get('apk');
+    }
+
+    const downloadBtn = document.getElementById('download-btn');
+    downloadBtn.href = apkUrl;
+
+    // Generate QR Code
+    new QRCode(document.getElementById("qrcode"), {
+      text: apkUrl,
+      width: 180,
+      height: 180,
+      colorDark: "#0b0f19",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  </script>
+</body>
+</html>

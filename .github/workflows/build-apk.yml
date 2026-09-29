@@ -1,0 +1,84 @@
+name: Build & Release Emergency Mesh APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Debug APK & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x ./gradlew
+
+      - name: Run Core & Android Unit Tests
+        run: ./gradlew :mesh-core:test :mesh-android:test
+
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Emergency Mesh Build"
+          body: |
+            ### 🚀 Automated Build Completed
+            - **Commit:** `${{ github.sha }}`
+            - **Branch:** `${{ github.ref_name }}`
+            - **Download Link:** [app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)
+            
+            Install directly on any Android 8.0+ device to test peer-to-peer disaster mesh relaying.
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Landing Page for Repo
+        run: |
+          # Replace placeholder APK URL with exact GitHub repository download URL
+          sed -i "s|https://github.com/\" + owner + \"/\" + repo + \"/releases/latest/download/app-debug.apk|https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk|g" web/index.html
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy-pages:
+    name: Deploy QR Code Webpage
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,104 @@
+[versions]
+# Android & Build Tooling
+agp = "8.5.1"
+kotlin = "2.0.21"
+minSdk = "26"
+compileSdk = "34"
+targetSdk = "34"
+
+# Kotlin & Concurrency
+coroutines = "1.9.0"
+
+# Serialization & Protocol
+protobuf = "4.28.3"
+protobufPlugin = "0.9.4"
+
+# Persistence & Security
+room = "2.6.1"
+sqlcipher = "4.5.4"
+sqliteKtx = "2.4.0"
+securityCrypto = "1.1.0-alpha06"
+
+# AndroidX Core & UI
+coreKtx = "1.13.1"
+lifecycle = "2.8.6"
+activityCompose = "1.9.3"
+composeBom = "2024.10.00"
+workManager = "2.9.1"
+
+# Google Play Services (Nearby Connections)
+playServicesNearby = "19.3.0"
+
+# Testing
+junit5 = "5.10.2"
+junitPlatform = "1.10.2"
+mockk = "1.13.12"
+assertk = "0.28.1"
+turbine = "1.1.0"
+androidxTestExt = "1.2.1"
+espresso = "3.6.1"
+
+[libraries]
+# Kotlin & Coroutines
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# Protobuf
+protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
+protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
+
+# AndroidX Core
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }
+
+# Compose BOM & UI
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+# Persistence & Crypto
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+sqlcipher = { module = "net.zetetic:android-database-sqlcipher", version.ref = "sqlcipher" }
+sqlite-ktx = { module = "androidx.sqlite:sqlite-ktx", version.ref = "sqliteKtx" }
+security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
+
+# Nearby Connections
+play-services-nearby = { module = "com.google.android.gms:play-services-nearby", version.ref = "playServicesNearby" }
+
+# Unit Testing (JVM)
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit5" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit5" }
+junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junit5" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+assertk = { module = "com.willowtreeapps.assertk:assertk", version.ref = "assertk" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+
+# Koin Dependency Injection
+koin-android = { module = "io.insert-koin:koin-android", version = "3.5.6" }
+koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version = "3.5.6" }
+
+# Android Instrumented Testing
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExt" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

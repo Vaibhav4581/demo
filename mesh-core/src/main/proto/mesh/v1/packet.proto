@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package mesh.v1;
+
+option java_package = "mesh.protocol";
+option java_multiple_files = true;
+
+enum PacketType {
+  PACKET_TYPE_UNSPECIFIED = 0;
+  HELLO = 1;
+  DATA = 2;
+  ACK = 3;
+  SYNC_SUMMARY = 4;
+}
+
+message Packet {
+  bytes      msg_id        = 1;  // 16 random bytes
+  bytes      origin        = 2;  // 8-byte node id
+  bytes      dest          = 3;  // 8-byte node id; empty = broadcast
+  PacketType type          = 4;
+  uint32     ttl           = 5;  // remaining hops
+  uint32     hop_count     = 6;  // hops travelled so far
+  uint64     created_at_ms = 7;
+  uint64     expires_at_ms = 8;
+  bytes      payload       = 9;  // DATA: encrypted body; HELLO: name+pubkey; SYNC_SUMMARY: bloom bytes
+}
