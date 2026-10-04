@@ -1,6 +1,7 @@
 package mesh.routing
 
 import mesh.dedup.DedupManager
+import mesh.crypto.KeyStore
 import mesh.protocol.HelloPayload
 import mesh.protocol.NodeId
 import mesh.protocol.Packet
@@ -43,7 +44,9 @@ class Router(
     val clock: Clock,
     val neighbourTable: NeighbourTable = NeighbourTable(),
     val routeTable: RouteTable = RouteTable(),
-    val dedupManager: DedupManager = DedupManager()
+    val dedupManager: DedupManager = DedupManager(),
+    /** Optional key store — when provided, peer public keys from HELLO packets are registered. */
+    val keyStore: KeyStore? = null
 ) : TransportListener {
 
     private val listeners = mutableListOf<RouterListener>()
@@ -107,6 +110,10 @@ class Router(
         try {
             val payload = HelloPayload.decode(packet.payload.toByteArray())
             neighbourTable.onHelloReceived(fromPeer, nowMs, payload.displayName, payload.publicKey)
+            // Register the peer's public key so X25519Crypto can encrypt to them.
+            if (payload.publicKey.isNotEmpty()) {
+                keyStore?.registerPeerKey(fromPeer, payload.publicKey)
+            }
         } catch (_: Exception) {
             neighbourTable.onHelloReceived(fromPeer, nowMs)
         }

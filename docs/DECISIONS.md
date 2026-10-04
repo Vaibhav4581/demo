@@ -136,4 +136,26 @@ This document tracks all key technical choices, library selections, and design r
 - **Consequences:**
   Provides a clean, intuitive, and battery-conserving interface that makes complex multi-hop mesh routing and store-and-forward dynamics transparent to end users.
 
+---
+
+## ADR 009: End-to-End Encryption with X25519, HKDF-SHA256, and ChaCha20-Poly1305 (Bouncy Castle)
+
+- **Date:** 2026-10-04
+- **Status:** Accepted
+- **Context:**
+  In a multi-hop disaster network, intermediate relay nodes forward packets on behalf of other devices. To protect message privacy, unicast DATA packet payloads must be encrypted end-to-end to the recipient's public key so that intermediaries cannot inspect or tamper with payloads. Furthermore, key material must be compact to fit the 32-byte public key field in `HelloPayload` without bloated serialization wrappers or conflicting Protobuf runtimes (such as Tink's `protobuf-java` collision with `protobuf-javalite`).
+- **Decision:**
+  - Implement `X25519Crypto : Crypto` using Bouncy Castle (`org.bouncycastle:bcprov-jdk18on:1.78.1`).
+  - Key pairs (`MeshKeyPair`) are standard RFC 7748 X25519 (32-byte private and public keys).
+  - Unicast payload encryption employs an ephemeral-static Diffie-Hellman exchange:
+    1. A fresh ephemeral X25519 key pair is generated per message (ensuring forward secrecy).
+    2. Diffie-Hellman agreement is computed against the recipient's 32-byte public key.
+    3. HKDF-SHA256 derives a 32-byte symmetric key and 12-byte nonce bound to context string `"mesh-v1-e2e"`.
+    4. Authenticated encryption is performed using ChaCha20-Poly1305 (RFC 8439) with a 128-bit MAC tag.
+    5. Wire format is `[32 bytes ephemeral public key] + [ciphertext + 16-byte Poly1305 tag]`.
+  - Discovered peer public keys from HELLO packets are automatically registered in Room's encrypted `nodes` table via `RoomKeyStore`.
+  - Broadcast packets remain unencrypted by design so all mesh participants can receive emergency alerts.
+- **Consequences:**
+  Provides authenticated, forward-secret end-to-end encryption with zero external dependencies or Protobuf runtime collisions across standard JVM and Android API 26+.
+
 

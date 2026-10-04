@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.protobuf.javalite)
     implementation(libs.protobuf.kotlin.lite)
+    implementation(libs.bouncycastle.prov)
 
     testImplementation(libs.junit.jupiter.api)
     testImplementation(libs.junit.jupiter.params)

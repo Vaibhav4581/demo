@@ -1,6 +1,7 @@
 package mesh.android.identity
 
 import android.content.Context
+import mesh.crypto.MeshKeyPair
 import mesh.protocol.NodeId
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
@@ -27,10 +28,10 @@ class NodeIdentityManager(
         var pub = keystoreManager.getBytes(KEY_PUBLIC_KEY)
         var priv = keystoreManager.getBytes(KEY_PRIVATE_KEY)
 
-        if (pub == null || pub.isEmpty() || priv == null || priv.isEmpty()) {
-            val keypair = generateIdentityKeyPair()
-            pub = keypair.first
-            priv = keypair.second
+        if (pub == null || pub.size != MeshKeyPair.KEY_SIZE_BYTES || priv == null || priv.size != MeshKeyPair.KEY_SIZE_BYTES) {
+            val kp = MeshKeyPair.generate()
+            pub = kp.publicKeyBytes
+            priv = kp.privateKeyBytes
             keystoreManager.putBytes(KEY_PUBLIC_KEY, pub)
             keystoreManager.putBytes(KEY_PRIVATE_KEY, priv)
         }
@@ -38,20 +39,6 @@ class NodeIdentityManager(
         publicKey = pub
         privateKey = priv
         nodeId = NodeId.fromPublicKey(publicKey)
-    }
-
-    private fun generateIdentityKeyPair(): Pair<ByteArray, ByteArray> {
-        return try {
-            val kpg = KeyPairGenerator.getInstance("EC")
-            kpg.initialize(256, SecureRandom())
-            val kp = kpg.generateKeyPair()
-            Pair(kp.public.encoded, kp.private.encoded)
-        } catch (_: Exception) {
-            val random = SecureRandom()
-            val priv = ByteArray(32).also { random.nextBytes(it) }
-            val pub = ByteArray(32).also { random.nextBytes(it) }
-            Pair(pub, priv)
-        }
     }
 
     companion object {

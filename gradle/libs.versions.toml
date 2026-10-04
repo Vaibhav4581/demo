@@ -19,6 +19,9 @@ sqlcipher = "4.5.4"
 sqliteKtx = "2.4.0"
 securityCrypto = "1.1.0-alpha06"
 
+# Cryptography
+bouncycastle = "1.78.1"
+
 # AndroidX Core & UI
 coreKtx = "1.13.1"
 lifecycle = "2.8.6"
@@ -72,6 +75,9 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 sqlcipher = { module = "net.zetetic:android-database-sqlcipher", version.ref = "sqlcipher" }
 sqlite-ktx = { module = "androidx.sqlite:sqlite-ktx", version.ref = "sqliteKtx" }
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
+
+# Bouncy Castle (JVM & Android E2E crypto — pure Java, no Protobuf collision)
+bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 
 # Nearby Connections
 play-services-nearby = { module = "com.google.android.gms:play-services-nearby", version.ref = "playServicesNearby" }

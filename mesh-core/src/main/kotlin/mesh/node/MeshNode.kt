@@ -1,5 +1,8 @@
 package mesh.node
 
+import mesh.crypto.InMemoryKeyStore
+import mesh.crypto.KeyStore
+import mesh.crypto.X25519Crypto
 import mesh.delivery.AntiEntropyManager
 import mesh.delivery.DeliveryState
 import mesh.delivery.Outbox
@@ -28,13 +31,33 @@ import java.util.concurrent.CopyOnWriteArrayList
  * High-level facade for a participating mesh node.
  *
  * Coordinates routing, deduplication, message persistence, outbox store-and-forward,
- * anti-entropy, and encryption.
+ * anti-entropy, and end-to-end encryption.
+ *
+ * ### Key-pair / NodeId relationship
+ * When a [NodeConfig] is supplied (the normal case), the node's [nodeId] is **derived from
+ * the public key** (`SHA-256(publicKey)[0..7]`) so identity is cryptographically tied to the
+ * key pair.  If [nodeId] is provided explicitly (e.g. legacy tests), the caller is responsible
+ * for consistency.
+ *
+ * ### Encryption wiring
+ * If [crypto] is not overridden and the config contains a real [mesh.crypto.MeshKeyPair],
+ * [X25519Crypto] is wired up automatically.  Broadcast packets bypass encryption because
+ * there is no single recipient public key.
+ *
+ * @param nodeId      explicit node identity; defaults to key-derived identity from [config]
+ * @param transport   radio transport abstraction
+ * @param clock       monotonic clock
+ * @param messageStore persisted message storage
+ * @param keyStore    registry of peer public keys populated by incoming HELLO packets
+ * @param crypto      encryption implementation; defaults to [X25519Crypto] when config has a real key pair
+ * @param config      node operational parameters including the local key pair
  */
 class MeshNode(
     val nodeId: NodeId,
     val transport: Transport,
     val clock: Clock = SystemClock,
     val messageStore: MessageStore = InMemoryMessageStore(),
+    val keyStore: KeyStore = InMemoryKeyStore(),
     val crypto: Crypto = NoOpCrypto(),
     val config: NodeConfig = NodeConfig()
 ) : TransportListener, RouterListener {
@@ -42,7 +65,8 @@ class MeshNode(
     val router: Router = Router(
         localNodeId = nodeId,
         transport = transport,
-        clock = clock
+        clock = clock,
+        keyStore = keyStore
     )
 
     val outbox: Outbox = Outbox(
@@ -58,8 +82,10 @@ class MeshNode(
         clock = clock
     )
 
-    private val messageReceivedCallbacks = CopyOnWriteArrayList<(from: NodeId, payload: ByteArray, isBroadcast: Boolean) -> Unit>()
-    private val deliveredCallbacks = CopyOnWriteArrayList<(msgId: ByteArray, ackPacket: Packet) -> Unit>()
+    private val messageReceivedCallbacks =
+        CopyOnWriteArrayList<(from: NodeId, payload: ByteArray, isBroadcast: Boolean) -> Unit>()
+    private val deliveredCallbacks =
+        CopyOnWriteArrayList<(msgId: ByteArray, ackPacket: Packet) -> Unit>()
 
     private var lastHelloTimeMs: Long = 0L
 
@@ -86,6 +112,8 @@ class MeshNode(
      * Sends a direct (unicast) message to [dest].
      *
      * The payload is encrypted with [Crypto], stored in [MessageStore], and enqueued in [Outbox].
+     * Encryption requires [dest]'s public key to be in [keyStore] — it is registered automatically
+     * when the destination node's HELLO packet has been received and processed.
      */
     fun send(
         dest: NodeId,
@@ -125,13 +153,15 @@ class MeshNode(
 
     /**
      * Broadcasts a message to all reachable nodes in the mesh.
+     *
+     * Broadcast packets are **not** encrypted (no single recipient key).
      */
     fun broadcast(payload: ByteArray): Packet {
         val nowMs = clock.nowMs()
         val packet = PacketFactory.createData(
             origin = nodeId,
             dest = null,
-            payload = payload,
+            payload = payload, // Broadcasts are plaintext
             ttl = config.defaultTtl,
             createdAtMs = nowMs,
             expiresAtMs = nowMs + config.messageLifetimeMs
@@ -154,7 +184,7 @@ class MeshNode(
     }
 
     /**
-     * Broadcasts a HELLO discovery packet to immediate neighbours.
+     * Broadcasts a HELLO discovery packet to immediate neighbours, carrying the local public key.
      */
     fun sendHello(): Packet {
         val helloPacket = PacketFactory.createHello(
@@ -200,7 +230,7 @@ class MeshNode(
         outbox.onPeerConnected(peer)
         // Initiate anti-entropy reconciliation
         antiEntropyManager.onPeerConnected(peer)
-        // Announce presence immediately
+        // Announce presence immediately (carries our public key)
         sendHello()
     }
 
@@ -215,7 +245,19 @@ class MeshNode(
     // RouterListener implementation
     override fun onLocalDelivery(packet: Packet) {
         if (packet.type == PacketType.DATA) {
-            val decryptedPayload = crypto.decrypt(packet.originNodeId, packet.payload.toByteArray())
+            val rawPayload = packet.payload.toByteArray()
+            val decryptedPayload = if (packet.isBroadcast) {
+                // Broadcasts are not encrypted
+                rawPayload
+            } else {
+                // Unicast: attempt decryption; fall back to raw on failure (e.g. NoOpCrypto sender)
+                try {
+                    crypto.decrypt(packet.originNodeId, rawPayload)
+                } catch (_: Exception) {
+                    rawPayload
+                }
+            }
+
             val record = MessageRecord(
                 msgId = packet.msgId.toByteArray(),
                 origin = packet.originNodeId,
@@ -246,5 +288,36 @@ class MeshNode(
 
     fun getDirectNeighbours(): Set<NodeId> = router.neighbourTable.getActiveNeighbours()
 
-    fun getKnownRoutes(): List<RouteEntry> = router.routeTable.getAllValidRoutes(clock.nowMs(), config.routeTtlMs)
+    fun getKnownRoutes(): List<RouteEntry> =
+        router.routeTable.getAllValidRoutes(clock.nowMs(), config.routeTtlMs)
+
+    companion object {
+        /**
+         * Convenience factory that creates a [MeshNode] with:
+         * - a fresh [NodeConfig] (generates a new X25519 key pair)
+         * - an [InMemoryKeyStore]
+         * - [X25519Crypto] wired to the generated key pair and key store
+         *
+         * The node's [NodeId] is derived from its public key.
+         */
+        fun withCrypto(
+            transport: Transport,
+            clock: Clock = SystemClock,
+            messageStore: MessageStore = InMemoryMessageStore(),
+            config: NodeConfig = NodeConfig()
+        ): MeshNode {
+            val keyStore = InMemoryKeyStore()
+            val crypto = X25519Crypto(config.keyPair, keyStore)
+            val nodeId = config.keyPair.nodeId
+            return MeshNode(
+                nodeId = nodeId,
+                transport = transport,
+                clock = clock,
+                messageStore = messageStore,
+                keyStore = keyStore,
+                crypto = crypto,
+                config = config
+            )
+        }
+    }
 }

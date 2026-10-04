@@ -38,14 +38,24 @@ val meshAndroidModule = module {
     single<mesh.android.power.DutyCycleController> {
         mesh.android.power.DutyCycleController()
     }
+    single<mesh.crypto.KeyStore> { mesh.android.storage.RoomKeyStore(get<MeshDatabase>()) }
     single<mesh.node.MeshNode> {
         val identityManager: NodeIdentityManager = get()
         val transport: mesh.android.transport.NearbyTransport = get()
         val messageStore: MessageStore = get()
+        val keyStore: mesh.crypto.KeyStore = get()
+        val keyPair = mesh.crypto.MeshKeyPair(identityManager.privateKey, identityManager.publicKey)
+        val crypto = mesh.crypto.X25519Crypto(keyPair, keyStore)
         mesh.node.MeshNode(
             nodeId = identityManager.nodeId,
             transport = transport,
-            messageStore = messageStore
+            messageStore = messageStore,
+            keyStore = keyStore,
+            crypto = crypto,
+            config = mesh.node.NodeConfig(
+                displayName = identityManager.displayName,
+                keyPair = keyPair
+            )
         )
     }
 }

@@ -14,12 +14,13 @@ class NodeIdentityManagerTest {
 
     @Test
     fun `NodeId is derived deterministically from public key`() {
-        val fakePubKey = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        val fakePubKey = ByteArray(32) { (it + 1).toByte() }
+        val fakePrivKey = ByteArray(32) { (it + 33).toByte() }
         val expectedNodeId = NodeId.fromPublicKey(fakePubKey)
 
         val keystore = mockk<KeystoreManager>(relaxed = true)
         every { keystore.getBytes("node_identity_public_key") } returns fakePubKey
-        every { keystore.getBytes("node_identity_private_key") } returns byteArrayOf(99)
+        every { keystore.getBytes("node_identity_private_key") } returns fakePrivKey
 
         val identityManager = NodeIdentityManager(keystore)
 
