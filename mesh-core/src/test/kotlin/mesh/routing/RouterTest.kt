@@ -161,4 +161,41 @@ class RouterTest {
         assertThat(sentPacket.type).isEqualTo(PacketType.ACK)
         assertThat(sentPacket.payload.toByteArray()).isEqualTo(packet.msgId.toByteArray())
     }
+
+    @Test
+    fun `relayed packets are dropped when forward rate limit is exceeded`() {
+        val limiter = mesh.delivery.RateLimiter(maxTokens = 1.0, refillRatePerSec = 0.5, clock = clock)
+        val rateLimitedRouter = Router(
+            localNodeId = localNodeId,
+            transport = transport,
+            clock = clock,
+            forwardRateLimiter = limiter
+        )
+
+        val dropped = mutableListOf<Pair<Packet, DropReason>>()
+        rateLimitedRouter.addListener(object : RouterListener {
+            override fun onPacketDropped(packet: Packet, reason: DropReason) {
+                dropped.add(Pair(packet, reason))
+            }
+        })
+
+        val transportB = FakeTransport(peerB)
+        val transportC = FakeTransport(peerC)
+        transport.link(transportB)
+        transport.link(transportC)
+
+        val p1 = PacketFactory.createData(origin = peerB, dest = peerD, payload = "p1".toByteArray(), ttl = 4)
+        val p2 = PacketFactory.createData(origin = peerB, dest = peerD, payload = "p2".toByteArray(), ttl = 4)
+
+        // First packet relays successfully (burst=1.0 consumed)
+        rateLimitedRouter.onPacketReceived(peerB, p1)
+        assertThat(dropped.isEmpty()).isEqualTo(true)
+        assertThat(rateLimitedRouter.rateLimitedDrops).isEqualTo(0L)
+
+        // Second packet arrives immediately: bucket exhausted -> dropped due to rate limiting
+        rateLimitedRouter.onPacketReceived(peerB, p2)
+        assertThat(dropped.size).isEqualTo(1)
+        assertThat(dropped[0].second).isEqualTo(DropReason.RATE_LIMITED)
+        assertThat(rateLimitedRouter.rateLimitedDrops).isEqualTo(1L)
+    }
 }

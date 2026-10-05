@@ -11,21 +11,31 @@ import mesh.crypto.MeshKeyPair
  */
 data class NodeConfig(
     val displayName: String = "MeshNode",
-    /** Long-term X25519/HPKE key pair for this node.  Generated fresh when not provided. */
+    /** Long-term X25519/HPKE key pair for this node. Generated fresh when not provided. */
     val keyPair: MeshKeyPair = MeshKeyPair.generate(),
     val helloIntervalMs: Long = DEFAULT_HELLO_INTERVAL_MS,
     val helloMissedLimit: Int = 3,
     val routeTtlMs: Long = DEFAULT_ROUTE_TTL_MS,
     val defaultTtl: Int = 8,
-    val messageLifetimeMs: Long = DEFAULT_MESSAGE_LIFETIME_MS
+    val messageLifetimeMs: Long = DEFAULT_MESSAGE_LIFETIME_MS,
+    val maxOutboxCapacity: Int = DEFAULT_MAX_OUTBOX_CAPACITY,
+    val forwardRateLimitPerSec: Double = DEFAULT_FORWARD_RATE_LIMIT_PER_SEC,
+    val forwardBurstLimit: Double = DEFAULT_FORWARD_BURST_LIMIT,
+    val broadcastRateLimitPerSec: Double = DEFAULT_BROADCAST_RATE_LIMIT_PER_SEC,
+    val broadcastBurstLimit: Double = DEFAULT_BROADCAST_BURST_LIMIT
 ) {
     /** The serialised Tink public keyset bytes included in every HELLO packet. */
     val publicKey: ByteArray get() = keyPair.publicKeysetBytes
 
     companion object {
-        const val DEFAULT_HELLO_INTERVAL_MS = 10_000L          // 10 seconds
-        const val DEFAULT_ROUTE_TTL_MS = 30 * 60 * 1000L       // 30 minutes
-        const val DEFAULT_MESSAGE_LIFETIME_MS = 24 * 60 * 60 * 1000L // 24 hours
+        const val DEFAULT_HELLO_INTERVAL_MS = 10_000L                 // 10 seconds
+        const val DEFAULT_ROUTE_TTL_MS = 30 * 60 * 1000L              // 30 minutes
+        const val DEFAULT_MESSAGE_LIFETIME_MS = 24 * 60 * 60 * 1000L  // 24 hours
+        const val DEFAULT_MAX_OUTBOX_CAPACITY = 500                   // Max pending packets in outbox
+        const val DEFAULT_FORWARD_RATE_LIMIT_PER_SEC = 20.0           // 20 forwarded pkts/sec
+        const val DEFAULT_FORWARD_BURST_LIMIT = 40.0                  // burst up to 40 forwarded pkts
+        const val DEFAULT_BROADCAST_RATE_LIMIT_PER_SEC = 5.0          // 5 local broadcasts/sec
+        const val DEFAULT_BROADCAST_BURST_LIMIT = 10.0                // burst up to 10 local broadcasts
     }
 
     // data class equals/hashCode on MeshKeyPair would be identity-based (object ref);
@@ -39,7 +49,12 @@ data class NodeConfig(
         if (helloMissedLimit != other.helloMissedLimit) return false
         if (routeTtlMs != other.routeTtlMs) return false
         if (defaultTtl != other.defaultTtl) return false
-        return messageLifetimeMs == other.messageLifetimeMs
+        if (messageLifetimeMs != other.messageLifetimeMs) return false
+        if (maxOutboxCapacity != other.maxOutboxCapacity) return false
+        if (forwardRateLimitPerSec != other.forwardRateLimitPerSec) return false
+        if (forwardBurstLimit != other.forwardBurstLimit) return false
+        if (broadcastRateLimitPerSec != other.broadcastRateLimitPerSec) return false
+        return broadcastBurstLimit == other.broadcastBurstLimit
     }
 
     override fun hashCode(): Int {
@@ -50,6 +65,11 @@ data class NodeConfig(
         result = 31 * result + routeTtlMs.hashCode()
         result = 31 * result + defaultTtl
         result = 31 * result + messageLifetimeMs.hashCode()
+        result = 31 * result + maxOutboxCapacity
+        result = 31 * result + forwardRateLimitPerSec.hashCode()
+        result = 31 * result + forwardBurstLimit.hashCode()
+        result = 31 * result + broadcastRateLimitPerSec.hashCode()
+        result = 31 * result + broadcastBurstLimit.hashCode()
         return result
     }
 }

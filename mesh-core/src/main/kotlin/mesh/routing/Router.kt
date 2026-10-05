@@ -12,16 +12,19 @@ import mesh.protocol.isBroadcast
 import mesh.protocol.isExpired
 import mesh.protocol.originNodeId
 import mesh.protocol.withDecrementedTtl
+import mesh.delivery.RateLimiter
 import mesh.transport.Clock
 import mesh.transport.Transport
 import mesh.transport.TransportListener
+import java.util.concurrent.atomic.AtomicLong
 
 enum class DropReason {
     DUPLICATE,
     TTL_EXPIRED,
     PACKET_EXPIRED,
     NO_ROUTE,
-    LOOPBACK_BLOCKED
+    LOOPBACK_BLOCKED,
+    RATE_LIMITED
 }
 
 interface RouterListener {
@@ -36,7 +39,8 @@ interface RouterListener {
  * Core multi-hop mesh routing engine implementing Section 4.2.
  *
  * Handles inbound packet deduplication, opportunistic distance-vector route learning,
- * local delivery, automatic ACK generation, and split-horizon forwarding with fallback flooding.
+ * local delivery, automatic ACK generation, split-horizon forwarding with fallback flooding,
+ * and rate-limited relay protection.
  */
 class Router(
     val localNodeId: NodeId,
@@ -46,10 +50,16 @@ class Router(
     val routeTable: RouteTable = RouteTable(),
     val dedupManager: DedupManager = DedupManager(),
     /** Optional key store — when provided, peer public keys from HELLO packets are registered. */
-    val keyStore: KeyStore? = null
+    val keyStore: KeyStore? = null,
+    /** Optional rate limiter to bound packet forwarding and prevent relay storms. */
+    val forwardRateLimiter: RateLimiter? = null
 ) : TransportListener {
 
     private val listeners = mutableListOf<RouterListener>()
+    private val _rateLimitedDrops = AtomicLong(0)
+
+    val rateLimitedDrops: Long
+        get() = _rateLimitedDrops.get()
 
     init {
         transport.registerListener(this)
@@ -189,6 +199,12 @@ class Router(
      * @param incomingPeer the neighbour from which the packet was received, or null if originating locally
      */
     fun forwardPacket(packet: Packet, incomingPeer: NodeId?): Boolean {
+        // Enforce forwarding rate limiter on relayed packets
+        if (incomingPeer != null && forwardRateLimiter != null && !forwardRateLimiter.tryAcquire()) {
+            notifyDropped(packet, DropReason.RATE_LIMITED)
+            return false
+        }
+
         val activeNeighbours = neighbourTable.getActiveNeighbours()
         val candidateNeighbours = if (incomingPeer != null) {
             activeNeighbours.filter { it != incomingPeer }
@@ -242,7 +258,10 @@ class Router(
         listenersCopy.forEach { it.onPacketRelayed(packet, nextHop) }
     }
 
-    private fun notifyDropped(packet: Packet, reason: DropReason) {
+    internal fun notifyDropped(packet: Packet, reason: DropReason) {
+        if (reason == DropReason.RATE_LIMITED) {
+            _rateLimitedDrops.incrementAndGet()
+        }
         val listenersCopy = synchronized(listeners) { listeners.toList() }
         listenersCopy.forEach { it.onPacketDropped(packet, reason) }
     }

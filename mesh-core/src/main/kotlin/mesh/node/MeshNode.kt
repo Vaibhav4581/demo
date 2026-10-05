@@ -6,6 +6,7 @@ import mesh.crypto.X25519Crypto
 import mesh.delivery.AntiEntropyManager
 import mesh.delivery.DeliveryState
 import mesh.delivery.Outbox
+import mesh.delivery.RateLimiter
 import mesh.protocol.NodeId
 import mesh.protocol.Packet
 import mesh.protocol.PacketFactory
@@ -13,6 +14,7 @@ import mesh.protocol.PacketType
 import mesh.protocol.destNodeId
 import mesh.protocol.isBroadcast
 import mesh.protocol.originNodeId
+import mesh.routing.DropReason
 import mesh.routing.RouteEntry
 import mesh.routing.Router
 import mesh.routing.RouterListener
@@ -62,17 +64,35 @@ class MeshNode(
     val config: NodeConfig = NodeConfig()
 ) : TransportListener, RouterListener {
 
+    val forwardRateLimiter: RateLimiter? = if (config.forwardRateLimitPerSec > 0.0) {
+        RateLimiter(
+            maxTokens = config.forwardBurstLimit,
+            refillRatePerSec = config.forwardRateLimitPerSec,
+            clock = clock
+        )
+    } else null
+
+    val broadcastRateLimiter: RateLimiter? = if (config.broadcastRateLimitPerSec > 0.0) {
+        RateLimiter(
+            maxTokens = config.broadcastBurstLimit,
+            refillRatePerSec = config.broadcastRateLimitPerSec,
+            clock = clock
+        )
+    } else null
+
     val router: Router = Router(
         localNodeId = nodeId,
         transport = transport,
         clock = clock,
-        keyStore = keyStore
+        keyStore = keyStore,
+        forwardRateLimiter = forwardRateLimiter
     )
 
     val outbox: Outbox = Outbox(
         router = router,
         messageStore = messageStore,
-        clock = clock
+        clock = clock,
+        maxCapacity = config.maxOutboxCapacity
     )
 
     val antiEntropyManager: AntiEntropyManager = AntiEntropyManager(
@@ -166,6 +186,22 @@ class MeshNode(
             createdAtMs = nowMs,
             expiresAtMs = nowMs + config.messageLifetimeMs
         )
+
+        if (broadcastRateLimiter != null && !broadcastRateLimiter.tryAcquire()) {
+            val record = MessageRecord(
+                msgId = packet.msgId.toByteArray(),
+                origin = nodeId,
+                dest = null,
+                payload = payload,
+                createdAtMs = nowMs,
+                expiresAtMs = packet.expiresAtMs,
+                deliveryState = DeliveryState.EXPIRED,
+                isIncoming = false
+            )
+            messageStore.saveMessage(record)
+            router.notifyDropped(packet, DropReason.RATE_LIMITED)
+            return packet
+        }
 
         val record = MessageRecord(
             msgId = packet.msgId.toByteArray(),

@@ -11,6 +11,7 @@ import mesh.storage.MessageRecord
 import mesh.storage.MessageStore
 import mesh.transport.Clock
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 data class OutboxEntry(
     val packet: Packet,
@@ -21,15 +22,21 @@ data class OutboxEntry(
 )
 
 /**
- * Store-and-forward outbox implementing retransmission and peer-connection flushing.
+ * Store-and-forward outbox implementing retransmission, peer-connection flushing,
+ * and bounded queue capacity with oldest-message eviction to prevent memory exhaustion.
  */
 class Outbox(
     val router: Router,
     val messageStore: MessageStore,
     val clock: Clock,
     val ackTracker: AckTracker = AckTracker(),
-    val retryPolicy: RetryPolicy = RetryPolicy()
+    val retryPolicy: RetryPolicy = RetryPolicy(),
+    val maxCapacity: Int = DEFAULT_MAX_CAPACITY
 ) {
+    companion object {
+        const val DEFAULT_MAX_CAPACITY = 500
+    }
+
     private class ByteArrayKey(val bytes: ByteArray) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -40,14 +47,20 @@ class Outbox(
     }
 
     private val entries = ConcurrentHashMap<ByteArrayKey, OutboxEntry>()
-    private val _totalRetransmissions = java.util.concurrent.atomic.AtomicLong(0)
+    private val _totalRetransmissions = AtomicLong(0)
+    private val _totalEvictions = AtomicLong(0)
 
     val totalRetransmissions: Long
         get() = _totalRetransmissions.get()
 
+    val totalEvictions: Long
+        get() = _totalEvictions.get()
+
     /**
      * Enqueues a packet for transmission.
      *
+     * If the outbox queue has reached [maxCapacity], expired packets are purged first.
+     * If still at capacity, the oldest pending packet is evicted.
      * Persists the packet in [MessageStore] and attempts an initial forward.
      * If no physical neighbours are available, the message remains stored in [DeliveryState.QUEUED].
      */
@@ -60,6 +73,14 @@ class Outbox(
         val nowMs = clock.nowMs()
         val msgIdBytes = packet.msgId.toByteArray()
         val key = ByteArrayKey(msgIdBytes)
+
+        // Bounded capacity enforcement
+        if (!entries.containsKey(key) && entries.size >= maxCapacity) {
+            purgeExpired(nowMs)
+            if (entries.size >= maxCapacity) {
+                evictOldest()
+            }
+        }
 
         // 1. Persist to storage (create message record if not already created)
         if (messageStore.getMessage(msgIdBytes) == null) {
@@ -188,6 +209,29 @@ class Outbox(
         ackTracker.handleAck(ackPacket)
     }
 
+    /**
+     * Purges all expired packets currently in the outbox queue.
+     *
+     * @return count of packets purged.
+     */
+    @Synchronized
+    fun purgeExpired(nowMs: Long = clock.nowMs()): Int {
+        val expiredKeys = entries.filter { it.value.packet.isExpired(nowMs) }.map { it.key.bytes }
+        expiredKeys.forEach { handleExpired(it) }
+        return expiredKeys.size
+    }
+
+    private fun evictOldest() {
+        val oldest = entries.entries.minByOrNull { it.value.packet.createdAtMs } ?: return
+        val oldestKeyBytes = oldest.key.bytes
+        entries.remove(oldest.key)
+        ackTracker.cancel(oldestKeyBytes)
+        messageStore.removeOutboxPacket(oldestKeyBytes)
+        messageStore.updateDeliveryState(oldestKeyBytes, DeliveryState.EXPIRED)
+        oldest.value.onExpired?.invoke()
+        _totalEvictions.incrementAndGet()
+    }
+
     private fun handleAckConfirmed(msgIdBytes: ByteArray, ackPacket: Packet) {
         val key = ByteArrayKey(msgIdBytes)
         val entry = entries.remove(key)
@@ -211,5 +255,7 @@ class Outbox(
     fun clear() {
         entries.clear()
         ackTracker.clear()
+        _totalRetransmissions.set(0)
+        _totalEvictions.set(0)
     }
 }

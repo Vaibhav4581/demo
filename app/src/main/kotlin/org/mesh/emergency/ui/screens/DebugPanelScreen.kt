@@ -36,6 +36,7 @@ import mesh.android.transport.TransportLogEvent
 import mesh.node.MeshNode
 import org.mesh.emergency.ui.components.DutyCycleBadge
 import org.mesh.emergency.ui.theme.Amber500
+import org.mesh.emergency.ui.theme.Blue400
 import org.mesh.emergency.ui.theme.Cyan400
 import org.mesh.emergency.ui.theme.Emerald500
 import org.mesh.emergency.ui.theme.Purple400
@@ -61,6 +62,9 @@ fun DebugPanelScreen(
     val duplicatesDropped = meshNode.router.dedupManager.duplicatesDropped
     val retransmissions = meshNode.outbox.totalRetransmissions
     val queueLength = meshNode.outbox.getPendingCount()
+    val maxCapacity = meshNode.outbox.maxCapacity
+    val evictions = meshNode.outbox.totalEvictions
+    val rateLimitedDrops = meshNode.router.rateLimitedDrops
     val dutyState = dutyCycleController.currentState
     val batteryPercent = dutyCycleController.batteryLevelProvider()
 
@@ -70,7 +74,7 @@ fun DebugPanelScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section: Network Health Metrics (2x2 Grid)
+        // Section: Network Health Metrics (2x3 Grid)
         item {
             Text(
                 text = "NETWORK ENGINE HEALTH",
@@ -109,7 +113,7 @@ fun DebugPanelScreen(
                     MetricCard(
                         title = "OUTBOX QUEUE",
                         value = "$queueLength",
-                        subtitle = "Pending packets",
+                        subtitle = "Pending (max $maxCapacity)",
                         color = Cyan400,
                         modifier = Modifier.weight(1f)
                     )
@@ -118,6 +122,26 @@ fun DebugPanelScreen(
                         value = "$batteryPercent%",
                         subtitle = "Adaptive threshold",
                         color = Emerald500,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MetricCard(
+                        title = "OUTBOX EVICTIONS",
+                        value = "$evictions",
+                        subtitle = "Queue capacity bounds",
+                        color = Rose500,
+                        modifier = Modifier.weight(1f)
+                    )
+                    MetricCard(
+                        title = "RATE LIMITED",
+                        value = "$rateLimitedDrops",
+                        subtitle = "Storm suppression",
+                        color = Blue400,
                         modifier = Modifier.weight(1f)
                     )
                 }

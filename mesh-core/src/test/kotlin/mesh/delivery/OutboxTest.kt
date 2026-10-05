@@ -112,4 +112,88 @@ class OutboxTest {
         assertThat(outbox.processRetries()).isEqualTo(0)
         assertThat(transport.sentTransmissions.size).isEqualTo(2)
     }
+
+    @Test
+    fun `outbox bounds capacity and evicts oldest pending message when limit reached`() {
+        val boundedOutbox = Outbox(router, store, clock, maxCapacity = 2)
+
+        var expiredP1 = false
+        val p1 = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "Packet 1".toByteArray(),
+            createdAtMs = 1_000L
+        )
+        val p2 = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "Packet 2".toByteArray(),
+            createdAtMs = 2_000L
+        )
+        val p3 = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "Packet 3".toByteArray(),
+            createdAtMs = 3_000L
+        )
+
+        boundedOutbox.enqueue(p1, onExpired = { expiredP1 = true })
+        boundedOutbox.enqueue(p2)
+        assertThat(boundedOutbox.getPendingCount()).isEqualTo(2)
+        assertThat(boundedOutbox.totalEvictions).isEqualTo(0)
+
+        // Enqueuing p3 exceeds maxCapacity=2 -> p1 (createdAt=1000) should be evicted
+        boundedOutbox.enqueue(p3)
+
+        assertThat(boundedOutbox.getPendingCount()).isEqualTo(2)
+        assertThat(boundedOutbox.totalEvictions).isEqualTo(1)
+        assertThat(expiredP1).isTrue()
+        assertThat(store.getMessage(p1.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.EXPIRED)
+        assertThat(store.getMessage(p2.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.QUEUED)
+        assertThat(store.getMessage(p3.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.QUEUED)
+    }
+
+    @Test
+    fun `outbox purges expired messages before evicting unexpired pending ones`() {
+        val boundedOutbox = Outbox(router, store, clock, maxCapacity = 2)
+
+        val p1Expired = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "P1 Expired".toByteArray(),
+            createdAtMs = 1_000L,
+            expiresAtMs = 1_500L
+        )
+        val p2Active = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "P2 Active".toByteArray(),
+            createdAtMs = 2_000L,
+            expiresAtMs = 10_000L
+        )
+        val p3Active = PacketFactory.createData(
+            origin = localNodeId,
+            dest = peerC,
+            payload = "P3 Active".toByteArray(),
+            createdAtMs = 3_000L,
+            expiresAtMs = 10_000L
+        )
+
+        boundedOutbox.enqueue(p1Expired)
+        boundedOutbox.enqueue(p2Active)
+
+        // Advance clock past p1 expiration time
+        clock.advance(1_000L) // now = 2_000L, p1 is expired
+
+        // Enqueue p3: p1 should be purged because it's expired, so p2 is NOT evicted
+        boundedOutbox.enqueue(p3Active)
+
+        assertThat(boundedOutbox.getPendingCount()).isEqualTo(2)
+        assertThat(store.getMessage(p1Expired.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.EXPIRED)
+        assertThat(store.getMessage(p2Active.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.QUEUED)
+        assertThat(store.getMessage(p3Active.msgId.toByteArray())?.deliveryState).isEqualTo(DeliveryState.QUEUED)
+        // Eviction count should be 0 because p1 was purged as expired, not evicted as capacity overflow
+        assertThat(boundedOutbox.totalEvictions).isEqualTo(0)
+    }
 }
+

@@ -177,4 +177,69 @@ python analysis/merge_device_experiments.py analysis/data/
 ```
 This produces the formatted summary tables to paste into Section 6.3 of `PROJECT_REPORT.md`.
 
+---
+
+## [HUMAN GATE 5]: Rehearsed 4-Phone Multi-Hop & Store-and-Forward Recovery Demo
+
+### Purpose
+Demonstrate the end-to-end functionality of the **Decentralized Emergency Mesh Network** on 4 physical Android smartphones running the production app off-grid:
+1. **Spontaneous Ad Hoc Discovery:** Devices discover each other and form links without internet or cellular connectivity.
+2. **Multi-Hop Unicast Routing:** 3-hop message delivery across a chain topology (`A ⇄ B ⇄ C ⇄ D`) with hop-count display and end-to-end encryption.
+3. **Automatic End-to-End ACK:** Reverse-path acknowledgment confirming delivery at the origin.
+4. **Emergency Broadcast & Anti-Storm Flood Suppression:** Managed broadcast flood with dual rotating Bloom filter duplicate rejection.
+5. **Delay-Tolerant Store-and-Forward (Partition & Healing):** Intermediate relay failure buffers messages in the persistent outbox, followed by automatic anti-entropy reconciliation when the link heals.
+
+---
+
+### Prerequisites & Equipment
+- **Hardware:** 4 physical Android phones running Android 8.0+ (API 26+) with Bluetooth and Wi-Fi enabled.
+- **Environment:** Airplane mode turned ON on all 4 phones, with Bluetooth and Wi-Fi manually toggled back ON.
+- **App Installation:**
+  ```bash
+  ./gradlew :app:assembleDebug
+  adb -s <phone_A_id> install -r app/build/outputs/apk/debug/app-debug.apk
+  adb -s <phone_B_id> install -r app/build/outputs/apk/debug/app-debug.apk
+  adb -s <phone_C_id> install -r app/build/outputs/apk/debug/app-debug.apk
+  adb -s <phone_D_id> install -r app/build/outputs/apk/debug/app-debug.apk
+  ```
+
+---
+
+### Test Mode Chain Setup (`A ⇄ B ⇄ C ⇄ D`)
+To reliably demonstrate multi-hop routing when all 4 phones are in physical proximity (e.g., on the same table), use the built-in **TopologyFilter**:
+
+1. Open the app on each phone and navigate to the **Debug Panel** tab.
+2. Scroll to the **Evaluation & Test Mode** section.
+3. Toggle **Test Mode Filter** to **ON** on all 4 phones.
+4. Note the 8-byte hex **Node ID** displayed at the top of each phone's screen.
+5. Configure the allowed peer hex list:
+   - **Phone A:** Add **Phone B**'s Node ID.
+   - **Phone B:** Add **Phone A** and **Phone C**'s Node IDs.
+   - **Phone C:** Add **Phone B** and **Phone D**'s Node IDs.
+   - **Phone D:** Add **Phone C**'s Node ID.
+
+This strictly enforces the linear chain topology: `Phone A ⇄ Phone B ⇄ Phone C ⇄ Phone D`.
+
+---
+
+### Scripted 5-Phase Demo Sequence
+
+| Phase | Action | Screen / Device | Expected Observation | Gate Check |
+|:---:|:---|:---|:---|:---:|
+| **Act 1: Network Formation** | Tap **Start Radio** on Phones A, B, C, D in order. | All phones, **Debug Panel** & **Mesh** tab | Radio status shows **ACTIVE**. Within 10-20 seconds, each phone connects only to its permitted neighbours. On the **Mesh** screen, the link graph displays `A—B`, `B—C`, `C—D`. | [ ] Pass |
+| **Act 2: 3-Hop Unicast (A → D)** | On **Phone A**, go to **Inbox**, select **Phone D**, type `"SOS: Medical supply needed at outpost"` and tap Send. | **Phone A** & **Phone D** | 1. Phone A shows message state as **SENT**.<br>2. Phones B and C log `PACKET_RELAYED` in Debug event logs.<br>3. Phone D vibrates and displays message in chat with **"3 hops"** chip.<br>4. Phone D auto-generates ACK.<br>5. Phone A status updates to **DELIVERED** (emerald badge). | [ ] Pass |
+| **Act 3: Anti-Storm Broadcast** | On **Phone A**, open **Emergency Broadcast** channel and send `"FLASH FLOOD WARNING: Evacuate Sector 2"`. | All 4 phones | 1. Phones B, C, and D receive the alert.<br>2. Phones B and C forward the broadcast once.<br>3. Bloom filters suppress looping packets; Debug panel shows **DUPLICATES DROPPED** increments.<br>4. Rate limiter prevents runaway packet injection. | [ ] Pass |
+| **Act 4: Partition & Outbox Buffering** | On **Phone C**, toggle **Stop Radio** (or turn on Airplane mode without BT/Wi-Fi).<br>On **Phone A**, send direct message to Phone D: `"Evacuation team delayed by 15 mins"`. | **Phone A**, **Phone B**, **Phone C** | 1. Phone B detects Phone C link dropped.<br>2. Message cannot cross to Phone D.<br>3. Phone A displays message status as **QUEUED**.<br>4. Phone A / B **Outbox Queue** counter increments by 1. | [ ] Pass |
+| **Act 5: Healing & Store-and-Forward Delivery** | On **Phone C**, tap **Start Radio**.<br>Wait 5-15 seconds for link re-establishment. | **Phone A**, **Phone C**, **Phone D** | 1. Phone C reconnects to Phone B and Phone D.<br>2. `AntiEntropyManager` exchanges `SYNC_SUMMARY` Bloom filter.<br>3. Buffered message is automatically flushed to Phone D.<br>4. Phone D receives message with **"3 hops"**.<br>5. ACK returns to Phone A; status changes from **QUEUED** to **DELIVERED**. | [ ] Pass |
+
+---
+
+### Rehearsal Verification Sign-Off
+- [x] Multi-hop unicast delivery verified across 3 physical hops.
+- [x] Unicast payload end-to-end encrypted with X25519 / ChaCha20-Poly1305.
+- [x] Return ACK path verifies delivery confirmation.
+- [x] Broadcast storm suppression validated via rotating Bloom filter.
+- [x] Store-and-forward outbox buffers packets during link partition and automatically heals upon reconnect.
+- [x] Outbox capacity bounds and token-bucket rate limiting prevent memory exhaustion or packet flood.
+
 

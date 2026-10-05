@@ -107,4 +107,38 @@ class MeshNodeTest {
         assertThat(bReceivedBroadcast).isTrue()
         assertThat(cReceivedBroadcast).isTrue()
     }
+
+    @Test
+    fun `excessive broadcasts exceeding rate limit are dropped and marked EXPIRED`() {
+        val clock = FakeClock(1000L)
+        val transportA = FakeTransport(idA)
+        val transportB = FakeTransport(idB)
+
+        val config = NodeConfig(
+            broadcastRateLimitPerSec = 1.0,
+            broadcastBurstLimit = 1.0
+        )
+        val nodeA = MeshNode(nodeId = idA, transport = transportA, clock = clock, config = config)
+        val nodeB = MeshNode(nodeId = idB, transport = transportB, clock = clock)
+
+        var bReceivedCount = 0
+        nodeB.onMessageReceived { _, _, isBcast ->
+            if (isBcast) bReceivedCount++
+        }
+
+        // Establish link after nodes are registered as transport listeners
+        transportA.link(transportB)
+
+        // First broadcast is within burst limit
+        val p1 = nodeA.broadcast("Alert 1".toByteArray())
+        assertThat(nodeA.getDeliveryState(p1.msgId.toByteArray())).isEqualTo(DeliveryState.DELIVERED)
+        assertThat(bReceivedCount).isEqualTo(1)
+
+        // Second immediate broadcast exceeds rate limit (burst=1.0 exhausted)
+        val p2 = nodeA.broadcast("Alert 2".toByteArray())
+        assertThat(nodeA.getDeliveryState(p2.msgId.toByteArray())).isEqualTo(DeliveryState.EXPIRED)
+        // Node B should not receive p2
+        assertThat(bReceivedCount).isEqualTo(1)
+        assertThat(nodeA.router.rateLimitedDrops).isEqualTo(1L)
+    }
 }

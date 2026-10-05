@@ -158,4 +158,24 @@ This document tracks all key technical choices, library selections, and design r
 - **Consequences:**
   Provides authenticated, forward-secret end-to-end encryption with zero external dependencies or Protobuf runtime collisions across standard JVM and Android API 26+.
 
+---
+
+## ADR 010: Token Bucket Rate Limiting, Bounded Outbox Capacity & Flood Hardening
+
+- **Date:** 2026-10-05
+- **Status:** Accepted
+- **Context:**
+  In high-density mesh deployments or malicious/buggy packet generation scenarios, broadcast storms and packet flooding can saturate low-bandwidth peer-to-peer radio channels (BLE / Wi-Fi Direct), exhaust device battery, and lead to OutOfMemory (OOM) crashes if store-and-forward outbox buffers grow without bounds.
+- **Decision:**
+  - Implement a token bucket algorithm (`RateLimiter`) in `mesh-core` with configurable capacity and refill rate per second using the abstract `Clock`.
+  - Wire forwarding rate limiting into `Router.forwardPacket()`: Relayed packets exceeding `forwardRateLimitPerSec` (default: 20 pkts/s, burst 40) are dropped with `DropReason.RATE_LIMITED`.
+  - Wire broadcast rate limiting into `MeshNode.broadcast()`: Locally generated broadcasts exceeding `broadcastRateLimitPerSec` (default: 5 msg/s, burst 10) are rejected and recorded as `DeliveryState.EXPIRED`.
+  - Bound `Outbox` capacity to `maxCapacity` (default: 500 packets). When enqueuing to a full queue:
+    1. Expired packets are purged first (`purgeExpired()`).
+    2. If still at capacity, the oldest pending packet (`createdAtMs` lowest) is evicted, transitioned to `DeliveryState.EXPIRED`, removed from storage, and `onExpired` is called.
+  - Track `rateLimitedDrops` and `totalEvictions` counters in `Router` and `Outbox`, exposing them in the Compose `DebugPanelScreen`.
+- **Consequences:**
+  Protects battery and radio bandwidth against storm flooding, prevents out-of-memory errors on constrained Android hardware, and provides real-time visibility into network engine health.
+
+
 

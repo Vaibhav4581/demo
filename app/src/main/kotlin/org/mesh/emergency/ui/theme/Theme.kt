@@ -21,6 +21,7 @@ val Cyan500 = Color(0xFF06B6D4)
 val Amber500 = Color(0xFFF59E0B)
 val Rose500 = Color(0xFFF43F5E)
 val Purple400 = Color(0xFFC084FC)
+val Blue400 = Color(0xFF60A5FA)
 
 private val DarkColorScheme = darkColorScheme(
     primary = Cyan400,
