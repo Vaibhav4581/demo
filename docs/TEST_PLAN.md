@@ -107,3 +107,74 @@ Verify the end-to-end user experience on real physical devices across all screen
 | **9** | **Debug & Health Panel** | Tap the **Debug** tab at the bottom navigation bar. | Screen displays 2x2 health metrics grid: <br>• **DUPLICATES DROPPED** (anti-storm filter)<br>• **RETRANSMISSIONS**<br>• **OUTBOX QUEUE**<br>• **BATTERY LEVEL**<br>• Scrolling **LINK LAYER LOG** with millisecond timestamps. | [ ] |
 | **10** | **Manual Diagnostics** | In Debug panel, tap **Force HELLO** and **Purge Expired**. | Toast notifications confirm HELLO broadcast and expired store purge with zero crashes. | [ ] |
 
+---
+
+## [HUMAN GATE 4]: Real-Device Evaluation Experiments (E1 to E6)
+
+### Purpose
+Execute the experimental evaluations defined in **Section 6 of `PROJECT_REPORT.md`** across physical Android phones (3 to 6 devices). Generate real measured CSV logs and process them using Python tools to populate the report tables. **Never fabricate or estimate results.**
+
+---
+
+### Experiment Protocols
+
+#### **E1: Line Topology (Delivery & Latency vs Hop Count)**
+- **Setup:** 4 phones on desk (A, B, C, D).
+- **TopologyFilter:** Enable on each device:
+  - Phone A allows [B]
+  - Phone B allows [A, C]
+  - Phone C allows [B, D]
+  - Phone D allows [C]
+- **Procedure:**
+  1. Verify chain forms: A <-> B <-> C <-> D.
+  2. Send 20 direct messages from A to B (1 hop), record latency and delivery.
+  3. Send 20 direct messages from A to C (2 hops), record latency and delivery.
+  4. Send 20 direct messages from A to D (3 hops), record latency and delivery.
+  5. In Debug Panel, tap **Export CSV**.
+  6. Pull logs: `adb pull /sdcard/Android/data/org.mesh.emergency/files/experiments/ ./analysis/data/E1/`
+
+#### **E2: Node Failure & Routing Recovery**
+- **Setup:** Grid / Redundant topology (A connects to B and C; D connects to B and C).
+- **Procedure:**
+  1. Start traffic from A to D at 1 pkt/sec.
+  2. Kill Phone B (turn off radio or exit app).
+  3. Observe A switching route to D via C.
+  4. Measure routing convergence time (time until next successful ACK).
+  5. Export CSV and pull to `./analysis/data/E2/`.
+
+#### **E3: Redundant Paths (Learned Routes vs Flooding)**
+- **Procedure:** Compare transmissions per delivered packet with dynamic route learning enabled versus pure flooding.
+
+#### **E4: Deduplication Effectiveness (Bloom Filter On vs Off)**
+- **Procedure:**
+  1. Broadcast 50 messages across 4 connected devices.
+  2. Note **Duplicates Dropped** counter in Debug panel.
+  3. Verify zero duplicate deliveries in user inbox.
+  4. Export CSV and pull to `./analysis/data/E4/`.
+
+#### **E5: Delay-Tolerant Store-and-Forward (Partition & Heal)**
+- **Procedure:**
+  1. Separate Phone D out of range of Phone C (or disconnect link via TopologyFilter).
+  2. Send 5 messages from A to D.
+  3. Observe status remains **QUEUED** in Outbox.
+  4. Reconnect Phone D.
+  5. Observe anti-entropy sync summary exchange and all 5 messages transition to **DELIVERED** upon ACK.
+
+#### **E6: Power & Battery Consumption (Duty Cycling Test)**
+- **Duration:** 1 hour per run, screen OFF.
+- **Run 1 (Duty Cycling ON):** `MeshService` running with `DutyCycleController` active.
+- **Run 2 (Duty Cycling OFF):** Continuous BLE/Wi-Fi scanning without sleep.
+- **Measurements:**
+  - Record battery percentage before and after.
+  - Run `adb shell dumpsys batterystats org.mesh.emergency > batterystats_e6.txt`.
+
+---
+
+### Log Aggregation & Report Generation
+Once experiment CSVs are pulled:
+```bash
+python analysis/merge_device_experiments.py analysis/data/
+```
+This produces the formatted summary tables to paste into Section 6.3 of `PROJECT_REPORT.md`.
+
+

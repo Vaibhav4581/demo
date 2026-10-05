@@ -36,6 +36,7 @@ class NearbyTransport(
     override val localNodeId: NodeId,
     private val connectionsClient: ConnectionsClient = Nearby.getConnectionsClient(context),
     val logger: TransportLogger = TransportLogger(),
+    val topologyFilter: mesh.android.testmode.TopologyFilter = mesh.android.testmode.TopologyFilter(),
     val serviceId: String = DEFAULT_SERVICE_ID
 ) : Transport {
 
@@ -331,6 +332,17 @@ class NearbyTransport(
                 return
             }
 
+            if (!topologyFilter.isPeerAllowed(peerNodeId)) {
+                logger.log(
+                    TransportLogEvent(
+                        eventType = TransportEventType.PEER_DISCONNECTED,
+                        peerIdHex = peerHex,
+                        details = "Discovered peer blocked by TopologyFilter"
+                    )
+                )
+                return
+            }
+
             // If already connected or connecting, do not create duplicate requests
             if (peerToEndpoint.containsKey(peerNodeId) || pendingEndpoints.values.contains(peerNodeId)) {
                 return
@@ -380,7 +392,14 @@ class NearbyTransport(
                 null
             }
 
-            if (peerNodeId == null || peerNodeId == localNodeId) {
+            if (peerNodeId == null || peerNodeId == localNodeId || !topologyFilter.isPeerAllowed(peerNodeId)) {
+                logger.log(
+                    TransportLogEvent(
+                        eventType = TransportEventType.PEER_DISCONNECTED,
+                        peerIdHex = peerHex,
+                        details = "Incoming connection rejected by TopologyFilter"
+                    )
+                )
                 connectionsClient.rejectConnection(endpointId)
                 return
             }

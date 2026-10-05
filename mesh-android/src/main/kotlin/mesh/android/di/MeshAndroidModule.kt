@@ -27,18 +27,23 @@ val meshAndroidModule = module {
     single<NodeDao> { get<MeshDatabase>().nodeDao() }
     single<MessageStore> { RoomMessageStore(get<MeshDatabase>()) }
     single<mesh.android.transport.TransportLogger> { mesh.android.transport.TransportLogger() }
+    single<mesh.android.testmode.TopologyFilter> { mesh.android.testmode.TopologyFilter() }
     single<mesh.android.transport.NearbyTransport> {
         val identityManager: NodeIdentityManager = get()
         mesh.android.transport.NearbyTransport(
             context = androidContext(),
             localNodeId = identityManager.nodeId,
-            logger = get()
+            logger = get(),
+            topologyFilter = get()
         )
     }
     single<mesh.android.power.DutyCycleController> {
         mesh.android.power.DutyCycleController()
     }
     single<mesh.crypto.KeyStore> { mesh.android.storage.RoomKeyStore(get<MeshDatabase>()) }
+    single<mesh.android.testmode.TrafficGenerator> {
+        mesh.android.testmode.TrafficGenerator(meshNode = get())
+    }
     single<mesh.node.MeshNode> {
         val identityManager: NodeIdentityManager = get()
         val transport: mesh.android.transport.NearbyTransport = get()

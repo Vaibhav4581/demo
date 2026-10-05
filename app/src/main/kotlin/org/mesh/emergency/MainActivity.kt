@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
     private val nearbyTransport: NearbyTransport by inject()
     private val meshNode: MeshNode by inject()
     private val dutyCycleController: DutyCycleController by inject()
+    private val trafficGenerator: mesh.android.testmode.TrafficGenerator by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,7 +102,8 @@ class MainActivity : ComponentActivity() {
                     identityManager = identityManager,
                     nearbyTransport = nearbyTransport,
                     meshNode = meshNode,
-                    dutyCycleController = dutyCycleController
+                    dutyCycleController = dutyCycleController,
+                    trafficGenerator = trafficGenerator
                 )
             }
         }
@@ -121,7 +123,8 @@ fun MainAppContent(
     identityManager: NodeIdentityManager,
     nearbyTransport: NearbyTransport,
     meshNode: MeshNode,
-    dutyCycleController: DutyCycleController
+    dutyCycleController: DutyCycleController,
+    trafficGenerator: mesh.android.testmode.TrafficGenerator? = null
 ) {
     val context = LocalContext.current
     var hasPermissions by remember { mutableStateOf(MeshPermissions.hasAllPermissions(context)) }
@@ -308,6 +311,7 @@ fun MainAppContent(
                                 dutyCycleController = dutyCycleController,
                                 isServiceRunning = isServiceRunning,
                                 recentEvents = recentEvents,
+                                trafficGenerator = trafficGenerator,
                                 onToggleService = { start ->
                                     if (start) {
                                         if (hasPermissions) {

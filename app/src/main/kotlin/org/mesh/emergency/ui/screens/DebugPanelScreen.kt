@@ -51,6 +51,7 @@ fun DebugPanelScreen(
     dutyCycleController: DutyCycleController,
     isServiceRunning: Boolean,
     recentEvents: List<TransportLogEvent>,
+    trafficGenerator: mesh.android.testmode.TrafficGenerator? = null,
     onToggleService: (Boolean) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
@@ -222,6 +223,118 @@ fun DebugPanelScreen(
                         ) {
                             Text("Purge Expired", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+
+        // Section: Evaluation Harness & Test Mode (Phase 9)
+        item {
+            Text(
+                text = "EVALUATION & TEST MODE",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                letterSpacing = 1.sp,
+                color = Purple400
+            )
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Slate900),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Topology Filter: ${if (nearbyTransport.topologyFilter.isEnabled) "ACTIVE (FILTERED)" else "DISABLED (ALL PEERS)"}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (nearbyTransport.topologyFilter.isEnabled) Emerald500 else Slate400
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Allows desk-based multi-hop evaluation by filtering direct links to emulate chain A-B-C-D.",
+                        fontSize = 11.sp,
+                        color = Slate400
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                nearbyTransport.topologyFilter.isEnabled = !nearbyTransport.topologyFilter.isEnabled
+                                Toast.makeText(
+                                    context,
+                                    "Topology filter: ${if (nearbyTransport.topologyFilter.isEnabled) "ENABLED" else "DISABLED"}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onRefresh()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                if (nearbyTransport.topologyFilter.isEnabled) "Disable Filter" else "Enable Filter",
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val outDir = mesh.android.testmode.LogExporter.getDefaultOutputDir(context)
+                                val records = trafficGenerator?.getRecords() ?: emptyList()
+                                mesh.android.testmode.LogExporter.exportExperiment(
+                                    outputDir = outDir,
+                                    trafficRecords = records,
+                                    transportEvents = nearbyTransport.logger.getRecentEvents(),
+                                    duplicatesDropped = duplicatesDropped,
+                                    retransmissions = retransmissions
+                                )
+                                Toast.makeText(context, "Exported CSV to: ${outDir.name}", Toast.LENGTH_LONG).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple400, contentColor = Color.White),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Export CSV", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (trafficGenerator != null && !trafficGenerator.running) {
+                                trafficGenerator.startTraffic(
+                                    dest = null, // broadcast to all
+                                    count = 10,
+                                    intervalMs = 500L,
+                                    payloadSizeBytes = 64,
+                                    onComplete = {
+                                        onRefresh()
+                                    }
+                                )
+                                Toast.makeText(context, "Injecting 10 test messages...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                trafficGenerator?.stop()
+                                Toast.makeText(context, "Traffic generation stopped.", Toast.LENGTH_SHORT).show()
+                            }
+                            onRefresh()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (trafficGenerator?.running == true) Rose500 else Cyan400,
+                            contentColor = Color.Black
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (trafficGenerator?.running == true) "Stop Traffic Generator" else "Inject 10 Test Packets (Traffic Gen)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
