@@ -15,16 +15,18 @@ Whenever updates are pushed, GitHub Actions automatically builds the latest debu
 
 ---
 
-## Architecture & Module Structure
-
-The project is strictly decoupled into 4 Gradle modules adhering to clean architectural boundaries:
+## Repository Structure
 
 ```
-├── mesh-core/               # Pure Kotlin/JVM (Protocol, Router, Bloom Filter, Outbox, RateLimiter, Crypto)
-├── mesh-sim/                # Pure Kotlin/JVM discrete-event simulator (VirtualClock, mobility, metrics, CLI)
-├── mesh-android/            # Android library (Nearby Connections Transport, Room + SQLCipher, MeshService)
-├── app/                     # Jetpack Compose UI Application (Conversations, Mesh visualization, Debug Panel)
-├── gradle/                  # Gradle Version Catalog (libs.versions.toml) & Wrapper (Gradle 8.14)
+├── routing-app/             # Android & Mesh Routing Project (Open this folder in Android Studio)
+│   ├── app/                 # Jetpack Compose UI Application (Conversations, Mesh visualization, Debug Panel)
+│   ├── mesh-android/        # Android library (Nearby Connections Transport, Room + SQLCipher, MeshService)
+│   ├── mesh-core/           # Pure Kotlin/JVM (Protocol, Router, Bloom Filter, Outbox, RateLimiter, Crypto)
+│   ├── mesh-sim/            # Pure Kotlin/JVM discrete-event simulator (VirtualClock, metrics, CLI)
+│   ├── gradle/              # Gradle Version Catalog (libs.versions.toml) & Wrapper (Gradle 8.14)
+│   └── build.gradle.kts     # Root build configuration for routing-app
+├── emergency-mesh-web/      # Vercel Landing Page & Web Portal (Live at demo-emergency-mesh-web.vercel.app)
+├── web/                     # Direct GitHub Pages hosting assets
 ├── docs/                    # Architecture Decision Records (DECISIONS.md), Protocol Specs & Test Plan
 └── analysis/                # Python scripts for parsing simulation data and multi-device experiment CSVs
 ```
@@ -40,28 +42,28 @@ The project is strictly decoupled into 4 Gradle modules adhering to clean archit
 
 - **Java Development Kit**: JDK 17 or higher (compatible with Android Studio JetBrains Runtime / JBR 21).
 - **Android SDK**: `compileSdk = 34`, `targetSdk = 34`, `minSdk = 26` (Android 8.0 Oreo or higher).
-- **Android Studio**: Android Studio Koala / Ladybug or newer.
-- **Python**: Python 3.8+ (for running evaluation scripts in `analysis/`).
+- **Android Studio**: Open the `routing-app/` folder in Android Studio.
 
 ---
 
 ## Build & Test Commands
 
-### Run All Unit Tests on JVM Modules
+To build or run tests, first navigate to `routing-app/`:
+
 ```bash
-./gradlew :mesh-core:test :mesh-sim:test
+cd routing-app
 ```
 
-### Run Android Unit Tests
+### Run All Unit Tests
 ```bash
-./gradlew :mesh-android:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :mesh-core:test :mesh-sim:test :mesh-android:testDebugUnitTest :app:testDebugUnitTest
 ```
 
 ### Build Android APK
 ```bash
 ./gradlew :app:assembleDebug
 ```
-The output APK is generated at: `app/build/outputs/apk/debug/app-debug.apk`.
+The compiled APK will be located at `routing-app/app/build/outputs/apk/debug/app-debug.apk`.
 
 ### Run Discrete-Event Simulator CLI
 ```bash

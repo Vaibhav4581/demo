@@ -39,20 +39,22 @@ jobs:
           gradle-version: '8.14'
 
       - name: Grant Execute Permission to Gradlew
-        run: chmod +x ./gradlew
+        run: chmod +x ./routing-app/gradlew
 
       - name: Configure Gradle Environment for Linux Runner
-        run: sed -i '/org.gradle.java.home/d' gradle.properties
+        run: sed -i '/org.gradle.java.home/d' routing-app/gradle.properties
 
       - name: Run All Automated Unit Tests
+        working-directory: ./routing-app
         run: ./gradlew :mesh-core:test :mesh-sim:test :mesh-android:testDebugUnitTest :app:testDebugUnitTest
 
       - name: Build Debug APK
+        working-directory: ./routing-app
         run: ./gradlew :app:assembleDebug
 
       - name: Stage APK for Direct GitHub Pages Hosting
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk web/app-debug.apk
+          cp routing-app/app/build/outputs/apk/debug/app-debug.apk web/app-debug.apk
 
       - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -70,7 +72,7 @@ jobs:
             Install directly on any Android 8.0+ device to test decentralized disaster mesh communication.
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: routing-app/app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
