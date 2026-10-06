@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -42,34 +44,35 @@ jobs:
       - name: Configure Gradle Environment for Linux Runner
         run: sed -i '/org.gradle.java.home/d' gradle.properties
 
-      - name: Run Core & Android Unit Tests
-        run: ./gradlew :mesh-core:test :mesh-android:test
+      - name: Run All Automated Unit Tests
+        run: ./gradlew :mesh-core:test :mesh-sim:test :mesh-android:testDebugUnitTest :app:testDebugUnitTest
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
+
+      - name: Stage APK for Direct GitHub Pages Hosting
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk web/app-debug.apk
 
       - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "Latest Emergency Mesh Build"
+          make_latest: true
           body: |
             ### 🚀 Automated Build Completed
             - **Commit:** `${{ github.sha }}`
             - **Branch:** `${{ github.ref_name }}`
-            - **Download Link:** [app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)
+            - **Direct Download:** [app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)
+            - **Web Portal:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
             
-            Install directly on any Android 8.0+ device to test peer-to-peer disaster mesh relaying.
+            Install directly on any Android 8.0+ device to test decentralized disaster mesh communication.
           draft: false
           prerelease: false
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Landing Page for Repo
-        run: |
-          # Replace placeholder APK URL with exact GitHub repository download URL
-          sed -i "s|https://github.com/\" + owner + \"/\" + repo + \"/releases/latest/download/app-debug.apk|https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk|g" web/index.html
 
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
@@ -77,7 +80,7 @@ jobs:
           path: web
 
   deploy-pages:
-    name: Deploy QR Code Webpage
+    name: Deploy Web Portal & Direct Download
     needs: build
     runs-on: ubuntu-latest
     environment:
