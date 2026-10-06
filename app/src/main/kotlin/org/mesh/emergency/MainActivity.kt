@@ -139,12 +139,16 @@ fun MainAppContent(
     val recentEvents = remember { mutableStateListOf<TransportLogEvent>() }
 
     fun refreshState() {
-        connectedPeers.clear()
-        connectedPeers.addAll(nearbyTransport.getConnectedPeers())
-        allMessages.clear()
-        allMessages.addAll(meshNode.messageStore.getAllMessages())
-        recentEvents.clear()
-        recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(25).reversed())
+        try {
+            connectedPeers.clear()
+            connectedPeers.addAll(nearbyTransport.getConnectedPeers())
+            allMessages.clear()
+            allMessages.addAll(meshNode.messageStore.getAllMessages())
+            recentEvents.clear()
+            recentEvents.addAll(nearbyTransport.logger.getRecentEvents().takeLast(25).reversed())
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Error refreshing state", e)
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(

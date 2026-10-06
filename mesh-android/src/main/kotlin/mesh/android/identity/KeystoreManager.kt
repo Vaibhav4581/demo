@@ -15,14 +15,11 @@ class KeystoreManager(
     private val context: Context,
     private val prefsName: String = "mesh_secure_keystore_prefs"
 ) {
-    private val masterKey: MasterKey by lazy {
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-    }
-
     private val securePrefs: SharedPreferences by lazy {
         try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
             EncryptedSharedPreferences.create(
                 context,
                 prefsName,
@@ -30,8 +27,8 @@ class KeystoreManager(
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
-        } catch (e: Exception) {
-            // Fallback for test/Robolectric environments
+        } catch (e: Throwable) {
+            // Fallback for test/Robolectric environments or devices with Keystore bugs
             context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         }
     }

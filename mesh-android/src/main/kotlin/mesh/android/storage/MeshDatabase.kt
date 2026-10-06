@@ -42,15 +42,44 @@ abstract class MeshDatabase : RoomDatabase() {
             passphrase: ByteArray,
             dbName: String = DEFAULT_DB_NAME
         ): MeshDatabase {
+            try {
+                net.sqlcipher.database.SQLiteDatabase.loadLibs(context)
+            } catch (e: Throwable) {
+                // Ignore if already initialized
+            }
             val factory = SupportFactory(passphrase)
-            return Room.databaseBuilder(
+            val db = Room.databaseBuilder(
                 context.applicationContext,
                 MeshDatabase::class.java,
                 dbName
             )
                 .openHelperFactory(factory)
+                .allowMainThreadQueries()
                 .fallbackToDestructiveMigration()
                 .build()
+
+            // Verify the encrypted database can be opened with the current passphrase.
+            // If the database file is corrupted or encrypted with an older/different key,
+            // wipe it and cleanly recreate so the app does not crash on launch.
+            try {
+                db.openHelper.writableDatabase
+            } catch (e: Throwable) {
+                try {
+                    context.deleteDatabase(dbName)
+                    return Room.databaseBuilder(
+                        context.applicationContext,
+                        MeshDatabase::class.java,
+                        dbName
+                    )
+                        .openHelperFactory(factory)
+                        .allowMainThreadQueries()
+                        .fallbackToDestructiveMigration()
+                        .build()
+                } catch (ignored: Throwable) {
+                    // Fall back to original instance if deletion/recreation fails
+                }
+            }
+            return db
         }
 
         /**

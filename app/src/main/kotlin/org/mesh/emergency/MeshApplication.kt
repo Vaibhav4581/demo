@@ -12,12 +12,20 @@ class MeshApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        startKoin {
-            androidLogger(Level.ERROR)
-            androidContext(this@MeshApplication)
-            modules(meshAndroidModule)
+        try {
+            startKoin {
+                androidLogger(Level.ERROR)
+                androidContext(this@MeshApplication)
+                modules(meshAndroidModule)
+            }
+        } catch (e: Throwable) {
+            android.util.Log.e("MeshApplication", "Koin initialization error", e)
         }
 
-        mesh.android.service.HousekeepingWorker.enqueuePeriodicHousekeeping(this)
+        try {
+            mesh.android.service.HousekeepingWorker.enqueuePeriodicHousekeeping(this)
+        } catch (e: Throwable) {
+            android.util.Log.e("MeshApplication", "Failed to enqueue periodic housekeeping", e)
+        }
     }
 }
