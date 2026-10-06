@@ -1,0 +1,3 @@
+msg_id,origin,dest,sent_time_ms,delivered_time_ms,ack_time_ms,latency_ms,hop_count,is_delivered,is_acked
+6feccced5acfe76058f875f0eec1610a,00000000aabbcc01,00000008aabbcc09,2000,2040,2080,80,4,true,true
+ea73e67be0c0d90e7132f7e68d70a3b8,00000000aabbcc01,00000008aabbcc09,5000,5040,5080,80,4,true,true

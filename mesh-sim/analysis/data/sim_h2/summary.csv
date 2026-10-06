@@ -1,0 +1,12 @@
+metric,value
+totalSent,5
+totalDelivered,5
+totalAcked,5
+deliveryRatePercent,100.00
+ackRatePercent,100.00
+averageLatencyMs,40.00
+averageHopCount,2.00
+totalTransmissions,24
+transmissionsPerDelivered,4.80
+duplicatesDropped,0
+convergenceTimeMs,-1

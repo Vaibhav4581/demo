@@ -1,0 +1,2 @@
+failure_time_ms,description,recovered_time_ms,convergence_time_ms
+4000,"Kill center relay (1,1)",5040,1040
