@@ -1,0 +1,17 @@
+{
+  "name": "emergency-mesh-web",
+  "version": "1.0.0",
+  "description": "Landing page and APK distribution portal for Decentralized Emergency Mesh Network",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "mesh",
+    "p2p",
+    "emergency",
+    "android",
+    "offline"
+  ],
+  "author": "Vaibhav K Moorthy, Team 9",
+  "license": "Apache-2.0"
+}
